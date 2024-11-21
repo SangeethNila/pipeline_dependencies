@@ -1,9 +1,10 @@
+from neo4j import Driver
 from graph_creation.utils import create_input_nodes_and_relationships, process_source_relationship
 from neo4j_queries.node_queries import ensure_component_node, ensure_data_node, ensure_parameter_node
 from neo4j_queries.edge_queries import create_data_relationship, create_out_param_relationship
 from pathlib import Path
 
-def process_cwl_inputs(driver, cwl_entity: dict):
+def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
     component_id = cwl_entity['path']
     if type(cwl_entity['inputs']) == list:
         for input in cwl_entity['inputs']:
@@ -13,7 +14,7 @@ def process_cwl_inputs(driver, cwl_entity: dict):
         for key in cwl_entity['inputs'].keys():
             create_input_nodes_and_relationships(driver, key, component_id)
 
-def process_cwl_outputs(driver, cwl_entity: dict):
+def process_cwl_outputs(driver: Driver, cwl_entity: dict) -> None:
     component_id = cwl_entity['path']
     for output in cwl_entity['outputs']:
         if type(output) == dict:
@@ -29,7 +30,7 @@ def process_cwl_outputs(driver, cwl_entity: dict):
                     for o in output['outputSource']:
                         process_source_relationship(driver, o, component_id, param_node_internal_id)
                         
-def process_cwl_steps(driver, cwl_entity: dict, repo: str):
+def process_cwl_steps(driver: Driver, cwl_entity: dict, repo: str) -> None:
     for step in cwl_entity['steps']:
         combined_path = Path(repo) / step['run']
         step_path = str(combined_path)

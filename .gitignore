@@ -1,3 +1,5 @@
 .venv/
 repos/
+**/__pycache__/
+*.py[cod]
 Neo4j-25ebc0db-Created-2024-11-17.txt

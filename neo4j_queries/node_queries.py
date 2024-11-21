@@ -1,7 +1,8 @@
 
+from neo4j import Driver
 from neo4j_queries.utils import clean_component_id
 
-def ensure_component_node(driver, prefixed_component_id):
+def ensure_component_node(driver: Driver, prefixed_component_id: str) -> tuple[int,str]:
     component_id = clean_component_id(prefixed_component_id)
     query = """
     MERGE (c:Component {component_id: $component_id})
@@ -12,7 +13,8 @@ def ensure_component_node(driver, prefixed_component_id):
         record = result.single()
         return record["node_internal_id"], record["id_property"]
 
-def ensure_parameter_node(driver, node_id, prefixed_component_id, param_type):
+def ensure_parameter_node(driver: Driver, node_id: str, prefixed_component_id: str, param_type: str) \
+        -> tuple[int,str,str,str]: 
     component_id = clean_component_id(prefixed_component_id)
     query = """
     MERGE (n:Parameter {parameter_id: $node_id, component_id: $component_id})
@@ -27,7 +29,7 @@ def ensure_parameter_node(driver, node_id, prefixed_component_id, param_type):
         record = result.single()
         return record["node_internal_id"], record["id_property"], record["component_id_property"], record['parameter_type_property']
     
-def ensure_data_node(driver, node_id, prefixed_component_id):
+def ensure_data_node(driver: Driver, node_id: str, prefixed_component_id: str) -> tuple[int,str,str]:
     component_id = clean_component_id(prefixed_component_id)
     query = """
     MERGE (n:Data {data_id: $node_id, component_id: $component_id})

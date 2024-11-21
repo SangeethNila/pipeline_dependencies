@@ -1,6 +1,7 @@
+from neo4j import Driver
 from neo4j_queries.utils import clean_component_id
 
-def create_in_param_relationship(driver, prefixed_component_id, parameter_internal_id):
+def create_in_param_relationship(driver: Driver, prefixed_component_id: str, parameter_internal_id: int) -> tuple[str,str]:
     component_id = clean_component_id(prefixed_component_id)
     query = """
     MATCH (c:Component {component_id: $component_id}), (p)
@@ -14,7 +15,7 @@ def create_in_param_relationship(driver, prefixed_component_id, parameter_intern
         record = result.single()
         return record["component_id"], record["parameter_id"]
     
-def create_out_param_relationship(driver, prefixed_component_id, parameter_internal_id):
+def create_out_param_relationship(driver: Driver, prefixed_component_id: str, parameter_internal_id: int) -> tuple[str,str]:
     component_id = clean_component_id(prefixed_component_id)
     query = """
     MATCH (c:Component {component_id: $component_id}), (p)
@@ -28,7 +29,7 @@ def create_out_param_relationship(driver, prefixed_component_id, parameter_inter
         record = result.single()
         return record["component_id"], record["parameter_id"]
     
-def create_data_relationship(driver, from_internal_node_id, to_internal_node_id):
+def create_data_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int)  -> tuple[int,int]:
     query = """
     MATCH (a), (b)
     WHERE id(a) = $from_internal_node_id AND id(b) = $to_internal_node_id

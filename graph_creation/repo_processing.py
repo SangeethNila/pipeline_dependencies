@@ -1,8 +1,9 @@
+from neo4j import Driver
 from graph_creation.cwl_parsing import get_cwl_from_repo
 from graph_creation.cwl_processing import process_cwl_inputs, process_cwl_outputs, process_cwl_steps
 from neo4j_queries.node_queries import ensure_component_node
 
-def process_repos(repo_list: list, driver):
+def process_repos(repo_list: list[str], driver: Driver) -> None:
     cwl_entities = {}
     for repo in repo_list:
         cwl_entities[repo]= get_cwl_from_repo(repo)
