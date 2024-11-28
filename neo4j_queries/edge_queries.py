@@ -71,7 +71,7 @@ def create_data_relationship(driver: Driver, from_internal_node_id: int, to_inte
     to_internal_node_id (int): the internal Neo4j ID of the second node
 
     Returns:
-    tuple[str,str]: from_internal_node_id, to_internal_node_id
+    tuple[int,int]: from_internal_node_id, to_internal_node_id
     """
     query = """
     MATCH (a), (b)
