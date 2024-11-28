@@ -2,6 +2,21 @@ from neo4j import Driver
 from neo4j_queries.utils import clean_component_id
 
 def create_in_param_relationship(driver: Driver, prefixed_component_id: str, parameter_internal_id: int) -> tuple[str,str]:
+    """
+    Creates a data dependency relationship in Neo4j between a component node with path prefixed_component_id 
+    and an in-parameter node with Neo4j internal ID parameter_internal_id.
+    This relationship is an outgoing data edge from the component to the in-parameter node.
+    The ID of the component can be given based on the local relative path, so it needs to be cleaned 
+    before querying Neo4j.
+
+    Parameters:
+    driver (Driver): the Neo4j driver
+    prefixed_component_id (str): the local relative path of the component
+    parameter_internal_id (int): the internal Neo4j ID of the in-parameter node
+
+    Returns:
+    tuple[str,str]: the component ID of the component, the parameter ID of the parameter
+    """
     component_id = clean_component_id(prefixed_component_id)
     query = """
     MATCH (c:Component {component_id: $component_id}), (p)
@@ -16,6 +31,21 @@ def create_in_param_relationship(driver: Driver, prefixed_component_id: str, par
         return record["component_id"], record["parameter_id"]
     
 def create_out_param_relationship(driver: Driver, prefixed_component_id: str, parameter_internal_id: int) -> tuple[str,str]:
+    """
+    Creates a data dependency relationship in Neo4j between a component node with path prefixed_component_id 
+    and an out-parameter node with Neo4j internal ID parameter_internal_id.
+    This relationship is an outgoing data edge from the out-parameter to the component node.
+    The ID of the component can be given based on the local relative path, so it needs to be cleaned 
+    before querying Neo4j.
+
+    Parameters:
+    driver (Driver): the Neo4j driver
+    prefixed_component_id (str): the local relative path of the component
+    parameter_internal_id (int): the internal Neo4j ID of the out-parameter node
+
+    Returns:
+    tuple[str,str]: the component ID of the component, the parameter ID of the parameter
+    """
     component_id = clean_component_id(prefixed_component_id)
     query = """
     MATCH (c:Component {component_id: $component_id}), (p)
@@ -30,6 +60,19 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
         return record["component_id"], record["parameter_id"]
     
 def create_data_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int)  -> tuple[int,int]:
+    """
+    Creates a data dependency relationship in Neo4j between the two nodes with Neo4j internal IDs given as parameters.
+    This relationship is an outgoing data edge from the node with internal ID from_internal_node_id
+    to the node with internal ID to_internal_node_id.
+
+    Parameters:
+    driver (Driver): the Neo4j driver
+    from_internal_node_id (int): the internal Neo4j ID of the first node
+    to_internal_node_id (int): the internal Neo4j ID of the second node
+
+    Returns:
+    tuple[str,str]: from_internal_node_id, to_internal_node_id
+    """
     query = """
     MATCH (a), (b)
     WHERE id(a) = $from_internal_node_id AND id(b) = $to_internal_node_id

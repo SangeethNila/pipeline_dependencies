@@ -4,70 +4,134 @@ from neo4j_queries.node_queries import ensure_component_node, ensure_data_node, 
 from neo4j_queries.edge_queries import create_data_relationship, create_out_param_relationship
 from pathlib import Path
 
+# TODO: deal with inputBindings
 def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
+    """
+    Processes the inputs of a CWL component (Workflow, CommandLineTool, or ExpressionTool)
+    For each input the following nodes and edges are created:
+    - an in-parameter node with the parameter ID as defined in the component and component ID equal to the path of the componet
+    - a data node with component ID of the component and data ID equal to the parameter ID
+    - a data edge from the component node to the in-parameter node
+    - a data edge from the data node to the the in-parameter node
+
+    Parameters:
+    driver (Driver): the driver used to connect to Neo4j
+    cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
+    """
     component_id = cwl_entity['path']
+    # Inputs can be defined a list or a dictionary
     if type(cwl_entity['inputs']) == list:
+        # List of dictionaries
+        # each element is identifiable via the key 'id'
         for input in cwl_entity['inputs']:
             if type(input) == dict:
                 create_input_nodes_and_relationships(driver, input['id'], component_id)
     elif type(cwl_entity['inputs']) == dict:
+        # Dictionary where each key is the ID of the input
+        # the value is a dictionary containing other properties
         for key in cwl_entity['inputs'].keys():
             create_input_nodes_and_relationships(driver, key, component_id)
 
+# TODO: deal with outputBindings
 def process_cwl_outputs(driver: Driver, cwl_entity: dict) -> None:
+    """
+    Processes the outputs of a CWL component (Workflow, CommandLineTool, or ExpressionTool)
+    For each output the following nodes and edges are created:
+    - an out-parameter node with the parameter ID as defined in the component and component ID equal to the path of the componet
+    - a data node with component ID of the component and data ID equal to output source defined in the component
+    - a data edge from the out-parameter node to the component node
+    - a data edge from the out-parameter node to the data node
+
+    Parameters:
+    driver (Driver): the driver used to connect to Neo4j
+    cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
+    """
     component_id = cwl_entity['path']
     for output in cwl_entity['outputs']:
         if type(output) == dict:
-            # Create out-parameter node o_node with id = o.id and component_id = c_node.id
+            # Create out-parameter node with the parameter ID as defined in the component
+            # and component ID equal to the path of the componet
             param_node = ensure_parameter_node(driver, output['id'], component_id, 'out')
-            # Create a directed data edge from o_node to c_node
             param_node_internal_id = param_node[0]
+            # Create out-parameter node with the parameter ID as defined in the component
+            # and component ID equal to the path of the componet
             create_out_param_relationship(driver, component_id, param_node_internal_id)
+            # Create a data node with component ID of the component and data ID equal to output source defined in the component
+            # and a data edge from the out-parameter node to the data node
             if 'outputSource' in output:
+                # the output source can be a singular ID or a list of IDs
                 if type(output['outputSource']) == str:
                     process_source_relationship(driver, output['outputSource'], component_id, param_node_internal_id)
                 elif type(output['outputSource']) == list:
-                    for o in output['outputSource']:
-                        process_source_relationship(driver, o, component_id, param_node_internal_id)
-                        
-def process_cwl_steps(driver: Driver, cwl_entity: dict, repo: str) -> None:
+                    for source_id in output['outputSource']:
+                        process_source_relationship(driver, source_id, component_id, param_node_internal_id)
+   
+def process_cwl_steps(driver: Driver, cwl_entity: dict, repo_path: str) -> None:
+    """
+    Processes the steps of a CWL Workflow component( which we will refer to as outer workflow component). 
+    A step can be a Workflow, CommandLineTool or ExpressionTool. 
+    For each step, a component node is created with component ID equal to the path of the step.
+    Then, the lists of inputs and outputs are processed.
+    For each input, the following nodes and edges are created:
+    - in-parameter node with ID as defined in the component and component ID equal to the path of the step
+    - a data edge from the step component node to the in-parameter node
+    - potentially a data node corresponding to the source of the input, with ID equal to the source ID defined in the outer workflow 
+        and component ID equal to the path of the outer workflow
+    - potentially a data edge from the in-parameter node to the data node of the source
+
+    For each output, the following nodes and edges are created:
+    - out-parameter node with ID as defined in the component and component ID equal to the path of the step
+    - a data edge from the out-parameter node to the step component node
+    - a data node representing the outer-workflow-level output, with ID equal to [step id]/[output id as defined in workflow]
+        and component ID equal to the path of the outer workflow
+    - a data edge from the out-parameter node to the data node
+
+    Parameters:
+    driver (Driver): the driver used to connect to Neo4j
+    cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
+    repo_path (str): the path of the repository that contains the CWL component
+    """
     for step in cwl_entity['steps']:
-        combined_path = Path(repo) / step['run']
+        # Retrieve path of the step
+        combined_path = Path(repo_path) / step['run']
         step_path = str(combined_path)
-        # if a component node with the same path (run) as s does not exist then
-        # Create component node s_node unique to s with id equal to run 
+        # Create the step component node with ID equal to the step 
         s_node = ensure_component_node(driver, step_path)
         s_node_internal_id = s_node[0]
-        for i in step['in']:
-            # Create in-parameter node i_node with id = i.id and component_id = s.run
-            param_node = ensure_parameter_node(driver, i['id'], step_path, 'in')
+
+        # Process the list of inputs of the step 
+        for input in step['in']:
+            # Create in-parameter node with ID as defined in the component and component ID equal to the path of the step
+            param_node = ensure_parameter_node(driver, input['id'], step_path, 'in')
             param_node_internal_id = param_node[0]
-            # Create a data edge from s_node to i_node
+            # Create a data edge from the step component node to the in-parameter node
             create_data_relationship(driver, s_node_internal_id, param_node_internal_id)
 
-            if 'source' in i:
-                if type(i['source']) == str:
-                    source_id = i['source']
+            # Inputs can have one or multiple data sources (data nodes)
+            # A data edge is drawn from the in-parameter node to the data node of the source
+            if 'source' in input:
+                if type(input['source']) == str:
+                    source_id = input['source']
                     process_source_relationship(driver, source_id, cwl_entity['path'], param_node_internal_id)
-                elif type(i['source']) == list:
-                    for source_id in i['source']:
+                elif type(input['source']) == list:
+                    for source_id in input['source']:
                         process_source_relationship(driver, source_id, cwl_entity['path'], param_node_internal_id)
 
-        for o in step['out']:
-            if type(o) == dict:
-                o_id = o['id']
+        # Process the list of outputs of the step
+        for output in step['out']:
+            # An output can be defined as a dictionary or simply as a string (ID only)
+            if type(output) == dict:
+                output_id = output['id']
             else:
-                o_id = o
-            # Create out-parameter node o_node with id = o.id and component_id = s.run
-            param_node = ensure_parameter_node(driver, o_id, step_path, 'out')
+                output_id = output
+            # Create out-parameter node with ID as defined in the component and component ID equal to the path of the step
+            param_node = ensure_parameter_node(driver, output_id, step_path, 'out')
             param_node_internal_id = param_node[0]
-            # Create a data edge from o_node to s_node
+            # Create a data edge from out-parameter node to the step component node
             create_data_relationship(driver, param_node_internal_id, s_node_internal_id)
-            # Workflow-level outputs of a step have \texttt{id} corresponding to \texttt{[[step ID]/[output ID as defined in workflow]]} 
-            # and a \texttt{component\_id} property equal to the ID of the workflow
-            # Create data node o_data_node with id = step_id/output_id and component_id = c_node.id
-            output_id = f"{step['id']}/{o_id}"
-            data_node = ensure_data_node(driver, output_id, cwl_entity['path'])
+            # Create data node with id equal to step_id/output_id and  component ID equal to the path of the outer workflow
+            outer_output_id = f"{step['id']}/{output_id}"
+            data_node = ensure_data_node(driver, outer_output_id, cwl_entity['path'])
             data_node_internal_id = data_node[0]
-            # Create a data edge from o_node to o_data_node
+            # Create a data edge from the out-parameter node to the data node
             create_data_relationship(driver, param_node_internal_id, data_node_internal_id)

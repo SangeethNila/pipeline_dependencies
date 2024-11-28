@@ -5,7 +5,15 @@ import os
 import gitlab
 import subprocess
 
-def clone_repos(repo_list: list[str], folder_name: str):
+def clone_repos(repo_list: list[str], folder_name: str) -> None:
+    """
+    Given a list of relative paths to ASTRON GitLab repositories and the name of a folder,
+    the mentioned repositories are cloned into the mentioned folder.
+
+    Parameters:
+    repo_list (list[str]): list of relative paths to ASTRON GitLab repositories
+    folder_name (str): the name of the folder to clone the repos into
+    """
     gl = gitlab.Gitlab('https://git.astron.nl')
     projects = gl.projects.list(iterator=True, get_all=True)
     for project in projects:
@@ -19,6 +27,7 @@ if __name__ == '__main__':
     folder = 'repos'
     clone_repos(relevant_repos, folder)
 
+    # Get the authentication details for Neo4j instance
     load_status = dotenv.load_dotenv("Neo4j-25ebc0db-Created-2024-11-17.txt")
     if load_status is False:
         raise RuntimeError('Environment variables not loaded.')
@@ -27,7 +36,7 @@ if __name__ == '__main__':
     AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
 
     repo_paths = [f'{folder}/{path}' for path in relevant_repos]
-    print(repo_paths)
+    
     with GraphDatabase.driver(URI, auth=AUTH) as driver:
         driver.verify_connectivity()
         print("Connection established.")
