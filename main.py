@@ -11,8 +11,8 @@ def clone_repos(repo_list: list[str], folder_name: str) -> None:
     the mentioned repositories are cloned into the mentioned folder.
 
     Parameters:
-    repo_list (list[str]): list of relative paths to ASTRON GitLab repositories
-    folder_name (str): the name of the folder to clone the repos into
+        repo_list (list[str]): list of relative paths to ASTRON GitLab repositories
+        folder_name (str): the name of the folder to clone the repos into
     """
     gl = gitlab.Gitlab('https://git.astron.nl')
     projects = gl.projects.list(iterator=True, get_all=True)

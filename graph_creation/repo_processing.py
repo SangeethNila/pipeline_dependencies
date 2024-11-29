@@ -9,8 +9,8 @@ def process_repos(repo_list: list[str], driver: Driver) -> None:
     the function parses the CWL files and turns them into a Neo4j dependency graph.
 
     Parameters:
-    repo_list (list[str]): a list of paths to local repositories
-    driver (Driver): a Neo4j driver
+        repo_list (list[str]): a list of paths to local repositories
+        driver (Driver): a Neo4j driver
     """
     cwl_entities = {}
     for repo in repo_list:

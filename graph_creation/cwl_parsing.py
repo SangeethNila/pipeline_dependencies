@@ -9,10 +9,10 @@ def get_cwl_from_repo(repo_path: str) -> list[dict]:
     The path is saved using the key 'path' with value equal to the relative path of the CWL file.
 
     Parameters:
-    repo_path (str): the path of the local repository
+        repo_path (str): the path of the local repository
 
     Returns:
-    list[dict]: a list of dictonaries, each dictionary is a parsed CWL file
+        list[dict]: a list of dictonaries, each dictionary is a parsed CWL file
     """
     cwl_entities = []
     pathlist = Path(repo_path).glob('**/*.cwl')

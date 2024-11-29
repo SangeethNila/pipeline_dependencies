@@ -10,19 +10,19 @@ def create_in_param_relationship(driver: Driver, prefixed_component_id: str, par
     before querying Neo4j.
 
     Parameters:
-    driver (Driver): the Neo4j driver
-    prefixed_component_id (str): the local relative path of the component
-    parameter_internal_id (int): the internal Neo4j ID of the in-parameter node
+        driver (Driver): the Neo4j driver
+        prefixed_component_id (str): the local relative path of the component
+        parameter_internal_id (int): the internal Neo4j ID of the in-parameter node
 
     Returns:
-    tuple[str,str]: the component ID of the component, the parameter ID of the parameter
+        tuple[str,str]: the component ID of the component, the parameter ID of the parameter
     """
     component_id = clean_component_id(prefixed_component_id)
     query = """
     MATCH (c:Component {component_id: $component_id}), (p)
-    WHERE id(p) = $parameter_internal_id
+    WHERE elementId(p) = $parameter_internal_id
     MERGE (c)-[:DATA]->(p)
-    RETURN c.id AS component_id, p.parameter_id AS parameter_id
+    RETURN c.component_id AS component_id, p.parameter_id AS parameter_id
     """
     with driver.session() as session:
         result = session.run(query, component_id=component_id, 
@@ -39,17 +39,17 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
     before querying Neo4j.
 
     Parameters:
-    driver (Driver): the Neo4j driver
-    prefixed_component_id (str): the local relative path of the component
-    parameter_internal_id (int): the internal Neo4j ID of the out-parameter node
+        driver (Driver): the Neo4j driver
+        prefixed_component_id (str): the local relative path of the component
+        parameter_internal_id (int): the internal Neo4j ID of the out-parameter node
 
     Returns:
-    tuple[str,str]: the component ID of the component, the parameter ID of the parameter
+        tuple[str,str]: the component ID of the component, the parameter ID of the parameter
     """
     component_id = clean_component_id(prefixed_component_id)
     query = """
     MATCH (c:Component {component_id: $component_id}), (p)
-    WHERE id(p) = $parameter_internal_id
+    WHERE elementId(p) = $parameter_internal_id
     MERGE (c)<-[:DATA]-(p)
     RETURN c.component_id AS component_id, p.parameter_id AS parameter_id
     """
@@ -66,21 +66,22 @@ def create_data_relationship(driver: Driver, from_internal_node_id: int, to_inte
     to the node with internal ID to_internal_node_id.
 
     Parameters:
-    driver (Driver): the Neo4j driver
-    from_internal_node_id (int): the internal Neo4j ID of the first node
-    to_internal_node_id (int): the internal Neo4j ID of the second node
+        driver (Driver): the Neo4j driver
+        from_internal_node_id (int): the internal Neo4j ID of the first node
+        to_internal_node_id (int): the internal Neo4j ID of the second node
 
     Returns:
-    tuple[int,int]: from_internal_node_id, to_internal_node_id
+        tuple[int,int]: from_internal_node_id, to_internal_node_id
     """
     query = """
     MATCH (a), (b)
-    WHERE id(a) = $from_internal_node_id AND id(b) = $to_internal_node_id
+    WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
     MERGE (a)-[:DATA]->(b)
-    RETURN a.id AS id_1, b.id AS id_2
+    RETURN elementId(a) AS id_1, elementId(b) AS id_2
     """
     with driver.session() as session:
         result = session.run(query, from_internal_node_id=from_internal_node_id,
                              to_internal_node_id=to_internal_node_id)
         record = result.single()
+        return record["id_1"], record["id_2"]
         return record["id_1"], record["id_2"]

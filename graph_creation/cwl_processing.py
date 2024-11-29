@@ -1,5 +1,5 @@
 from neo4j import Driver
-from graph_creation.utils import create_input_nodes_and_relationships, process_source_relationship
+from graph_creation.utils import create_input_nodes_and_relationships, process_source_relationship, resolve_relative_path
 from neo4j_queries.node_queries import ensure_component_node, ensure_data_node, ensure_parameter_node
 from neo4j_queries.edge_queries import create_data_relationship, create_out_param_relationship
 from pathlib import Path
@@ -15,8 +15,8 @@ def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
     - a data edge from the data node to the the in-parameter node
 
     Parameters:
-    driver (Driver): the driver used to connect to Neo4j
-    cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
+        driver (Driver): the driver used to connect to Neo4j
+        cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
     """
     component_id = cwl_entity['path']
     # Inputs can be defined a list or a dictionary
@@ -43,8 +43,8 @@ def process_cwl_outputs(driver: Driver, cwl_entity: dict) -> None:
     - a data edge from the out-parameter node to the data node
 
     Parameters:
-    driver (Driver): the driver used to connect to Neo4j
-    cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
+        driver (Driver): the driver used to connect to Neo4j
+        cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
     """
     component_id = cwl_entity['path']
     for output in cwl_entity['outputs']:
@@ -66,7 +66,7 @@ def process_cwl_outputs(driver: Driver, cwl_entity: dict) -> None:
                     for source_id in output['outputSource']:
                         process_source_relationship(driver, source_id, component_id, param_node_internal_id)
    
-def process_cwl_steps(driver: Driver, cwl_entity: dict, repo_path: str) -> None:
+def process_cwl_steps(driver: Driver, cwl_entity: dict) -> None:    
     """
     Processes the steps of a CWL Workflow component( which we will refer to as outer workflow component). 
     A step can be a Workflow, CommandLineTool or ExpressionTool. 
@@ -87,14 +87,16 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, repo_path: str) -> None:
     - a data edge from the out-parameter node to the data node
 
     Parameters:
-    driver (Driver): the driver used to connect to Neo4j
-    cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
-    repo_path (str): the path of the repository that contains the CWL component
+        driver (Driver): the driver used to connect to Neo4j
+        cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
     """
     for step in cwl_entity['steps']:
+
         # Retrieve path of the step
-        combined_path = Path(repo_path) / step['run']
-        step_path = str(combined_path)
+        workflow_folder = Path(cwl_entity['path']).parent
+        full_step_path = workflow_folder / Path(step['run'])
+        step_path = str(resolve_relative_path(full_step_path))
+
         # Create the step component node with ID equal to the step 
         s_node = ensure_component_node(driver, step_path)
         s_node_internal_id = s_node[0]
