@@ -84,4 +84,55 @@ def create_data_relationship(driver: Driver, from_internal_node_id: int, to_inte
                              to_internal_node_id=to_internal_node_id)
         record = result.single()
         return record["id_1"], record["id_2"]
+    
+
+def create_control_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int)  -> tuple[int,int]:
+    """
+    Creates a control dependency relationship in Neo4j between the two nodes with Neo4j internal IDs given as parameters.
+    This relationship is an outgoing control edge from the node with internal ID from_internal_node_id
+    to the node with internal ID to_internal_node_id.
+
+    Parameters:
+        driver (Driver): the Neo4j driver
+        from_internal_node_id (int): the internal Neo4j ID of the first node
+        to_internal_node_id (int): the internal Neo4j ID of the second node
+
+    Returns:
+        tuple[int,int]: from_internal_node_id, to_internal_node_id
+    """
+    query = """
+    MATCH (a), (b)
+    WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
+    MERGE (a)-[:CONTROL]->(b)
+    RETURN elementId(a) AS id_1, elementId(b) AS id_2
+    """
+    with driver.session() as session:
+        result = session.run(query, from_internal_node_id=from_internal_node_id,
+                             to_internal_node_id=to_internal_node_id)
+        record = result.single()
+        return record["id_1"], record["id_2"]
+    
+def create_has_child_relationship(driver: Driver, parent_internal_node_id: int, child_internal_node_id: int)  -> tuple[int,int]:
+    """
+    Creates a "has child" relationship in Neo4j between the two nodes with Neo4j internal IDs given as parameters.
+    This relationship is an outgoing "has child" edge from the parent node to the child node.
+
+    Parameters:
+        driver (Driver): the Neo4j driver
+        parent_internal_node_id (int): the internal Neo4j ID of the parent node
+        child_internal_node_id (int): the internal Neo4j ID of the child node
+
+    Returns:
+        tuple[int,int]: parent_internal_node_id, child_internal_node_id
+    """
+    query = """
+    MATCH (parent), (child)
+    WHERE elementId(parent) = $parent_id AND elementId(child) = $child_id
+    CREATE (parent)-[:HAS_CHILD]->(child)
+    RETURN elementId(parent) AS id_1, elementId(child) AS id_2
+    """
+    with driver.session() as session:
+        result = session.run(query, parent_id=parent_internal_node_id,
+                             child_id=child_internal_node_id)
+        record = result.single()
         return record["id_1"], record["id_2"]

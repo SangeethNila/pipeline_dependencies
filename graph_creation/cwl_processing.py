@@ -1,8 +1,11 @@
 from neo4j import Driver
+from graph_creation.cst_processing import traverse_when_statement_extract_dependencies
 from graph_creation.utils import create_input_nodes_and_relationships, process_source_relationship, resolve_relative_path
-from neo4j_queries.node_queries import ensure_component_node, ensure_data_node, ensure_parameter_node
-from neo4j_queries.edge_queries import create_data_relationship, create_out_param_relationship
+from neo4j_queries.node_queries import ensure_component_node, ensure_data_node, ensure_parameter_node, get_wf_data_nodes_from_step_in_param
+from neo4j_queries.edge_queries import create_control_relationship, create_data_relationship, create_out_param_relationship
 from pathlib import Path
+
+from parsers.javascript_parsing import parse_javascript_expression_string
 
 # TODO: deal with inputBindings
 def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
@@ -68,23 +71,30 @@ def process_cwl_outputs(driver: Driver, cwl_entity: dict) -> None:
    
 def process_cwl_steps(driver: Driver, cwl_entity: dict) -> None:    
     """
-    Processes the steps of a CWL Workflow component( which we will refer to as outer workflow component). 
+    Processes the steps of a CWL Workflow component (which we will refer to as outer workflow component). 
     A step can be a Workflow, CommandLineTool or ExpressionTool. 
     For each step, a component node is created with component ID equal to the path of the step.
     Then, the lists of inputs and outputs are processed.
-    For each input, the following nodes and edges are created:
-    - in-parameter node with ID as defined in the component and component ID equal to the path of the step
-    - a data edge from the step component node to the in-parameter node
-    - potentially a data node corresponding to the source of the input, with ID equal to the source ID defined in the outer workflow 
-        and component ID equal to the path of the outer workflow
-    - potentially a data edge from the in-parameter node to the data node of the source
 
-    For each output, the following nodes and edges are created:
-    - out-parameter node with ID as defined in the component and component ID equal to the path of the step
-    - a data edge from the out-parameter node to the step component node
-    - a data node representing the outer-workflow-level output, with ID equal to [step id]/[output id as defined in workflow]
+    - For each input, the following nodes and edges are created:
+        - in-parameter node with ID as defined in the component and component ID equal to the path of the step
+        - a data edge from the step component node to the in-parameter node
+        - potentially a data node corresponding to the source of the input, with ID equal to the source ID defined in the outer workflow 
         and component ID equal to the path of the outer workflow
-    - a data edge from the out-parameter node to the data node
+        - potentially a data edge from the in-parameter node to the data node of the source
+
+    - If the step has a "when" field, then the JS expression is parsed and its dependencies are extracted.
+        - The step is control dependent on data node x with component_id equal to the outer workflow id if:
+            - the when expression mentions a step parameter which is data dependent on x
+            - the when expression mentions the data_id of x
+        - A control edge is created from the step component node to the data node x.
+
+    - For each output, the following nodes and edges are created:
+        - out-parameter node with ID as defined in the component and component ID equal to the path of the step
+        - a data edge from the out-parameter node to the step component node
+        - a data node representing the outer-workflow-level output, with ID equal to [step id]/[output id as defined in workflow]
+        and component ID equal to the path of the outer workflow
+        - a data edge from the out-parameter node to the data node
 
     Parameters:
         driver (Driver): the driver used to connect to Neo4j
@@ -118,6 +128,25 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict) -> None:
                 elif type(input['source']) == list:
                     for source_id in input['source']:
                         process_source_relationship(driver, source_id, cwl_entity['path'], param_node_internal_id)
+
+        # Process the "when" field, aka control dependencies
+        if 'when' in step:
+            when_expr = step['when']
+            expr_tree = parse_javascript_expression_string(when_expr)
+            when_refs = traverse_when_statement_extract_dependencies(expr_tree)
+
+            data_nodes = []
+            for ref in when_refs:
+                ref_id = ref[1]
+                if ref[0] == "parameter":
+                    input_data = get_wf_data_nodes_from_step_in_param(driver, ref_id, step_path, cwl_entity['path'])
+                    data_nodes.extend(input_data)
+                elif ref[0] == "step_output":
+                    step_output = ensure_data_node(driver, ref_id, cwl_entity['path'])[0]
+                    data_nodes.append(step_output)
+
+            for data_node in data_nodes:
+                create_control_relationship(driver, s_node_internal_id, data_node)
 
         # Process the list of outputs of the step
         for output in step['out']:

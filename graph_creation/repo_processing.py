@@ -22,4 +22,4 @@ def process_repos(repo_list: list[str], driver: Driver) -> None:
             process_cwl_inputs(driver, entity)
             process_cwl_outputs(driver, entity)
             if entity['class'] == 'Workflow':
-                process_cwl_steps(driver, entity, repo)
+                process_cwl_steps(driver, entity)

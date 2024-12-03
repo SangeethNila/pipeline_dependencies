@@ -3,3 +3,4 @@ python-dotenv
 neo4j
 ruamel.yaml
 cwl-utils
+antlr4-python3-runtime
