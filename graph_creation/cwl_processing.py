@@ -1,11 +1,11 @@
 from neo4j import Driver
-from graph_creation.cst_processing import traverse_when_statement_extract_dependencies
+from graph_creation.cst_processing import traverse_and_create, traverse_when_statement_extract_dependencies
 from graph_creation.utils import create_input_nodes_and_relationships, process_source_relationship, resolve_relative_path
-from neo4j_queries.node_queries import ensure_component_node, ensure_data_node, ensure_parameter_node, get_wf_data_nodes_from_step_in_param
+from neo4j_queries.node_queries import ensure_component_node, ensure_data_node, ensure_in_parameter_node, ensure_out_parameter_node, get_wf_data_nodes_from_step_in_param
 from neo4j_queries.edge_queries import create_control_relationship, create_data_relationship, create_out_param_relationship
 from pathlib import Path
 
-from parsers.javascript_parsing import parse_javascript_expression_string
+from parsers.javascript_parsing import parse_javascript_expression_string, parse_javascript_string
 
 # TODO: deal with inputBindings
 def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
@@ -54,7 +54,7 @@ def process_cwl_outputs(driver: Driver, cwl_entity: dict) -> None:
         if type(output) == dict:
             # Create out-parameter node with the parameter ID as defined in the component
             # and component ID equal to the path of the componet
-            param_node = ensure_parameter_node(driver, output['id'], component_id, 'out')
+            param_node = ensure_out_parameter_node(driver, output['id'], component_id)
             param_node_internal_id = param_node[0]
             # Create out-parameter node with the parameter ID as defined in the component
             # and component ID equal to the path of the componet
@@ -114,7 +114,7 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict) -> None:
         # Process the list of inputs of the step 
         for input in step['in']:
             # Create in-parameter node with ID as defined in the component and component ID equal to the path of the step
-            param_node = ensure_parameter_node(driver, input['id'], step_path, 'in')
+            param_node = ensure_in_parameter_node(driver, input['id'], step_path)
             param_node_internal_id = param_node[0]
             # Create a data edge from the step component node to the in-parameter node
             create_data_relationship(driver, s_node_internal_id, param_node_internal_id)
@@ -135,18 +135,18 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict) -> None:
             expr_tree = parse_javascript_expression_string(when_expr)
             when_refs = traverse_when_statement_extract_dependencies(expr_tree)
 
-            data_nodes = []
+            nodes = []
             for ref in when_refs:
                 ref_id = ref[1]
                 if ref[0] == "parameter":
-                    input_data = get_wf_data_nodes_from_step_in_param(driver, ref_id, step_path, cwl_entity['path'])
-                    data_nodes.extend(input_data)
+                    input_data = ensure_in_parameter_node(driver, ref_id, step_path)[0]
+                    nodes.append(input_data)
                 elif ref[0] == "step_output":
                     step_output = ensure_data_node(driver, ref_id, cwl_entity['path'])[0]
-                    data_nodes.append(step_output)
+                    nodes.append(step_output)
 
-            for data_node in data_nodes:
-                create_control_relationship(driver, s_node_internal_id, data_node)
+            for node in nodes:
+                create_control_relationship(driver, s_node_internal_id, node, cwl_entity['path'])
 
         # Process the list of outputs of the step
         for output in step['out']:
@@ -156,7 +156,7 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict) -> None:
             else:
                 output_id = output
             # Create out-parameter node with ID as defined in the component and component ID equal to the path of the step
-            param_node = ensure_parameter_node(driver, output_id, step_path, 'out')
+            param_node = ensure_out_parameter_node(driver, output_id, step_path)
             param_node_internal_id = param_node[0]
             # Create a data edge from out-parameter node to the step component node
             create_data_relationship(driver, param_node_internal_id, s_node_internal_id)
@@ -164,5 +164,10 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict) -> None:
             outer_output_id = f"{step['id']}/{output_id}"
             data_node = ensure_data_node(driver, outer_output_id, cwl_entity['path'])
             data_node_internal_id = data_node[0]
-            # Create a data edge from the out-parameter node to the data node
-            create_data_relationship(driver, param_node_internal_id, data_node_internal_id)
+            # Create a data edge from the data node to the  out-parameter node 
+            create_data_relationship(driver, data_node_internal_id, param_node_internal_id)
+
+def process_cwl_expression(driver: Driver, entity: dict) -> None:
+    expression = entity['expression']
+    expr_tree = parse_javascript_string(expression)
+    # traverse_and_create(driver, entity['path'], expr_tree)

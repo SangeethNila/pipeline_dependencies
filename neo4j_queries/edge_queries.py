@@ -19,7 +19,7 @@ def create_in_param_relationship(driver: Driver, prefixed_component_id: str, par
     """
     component_id = clean_component_id(prefixed_component_id)
     query = """
-    MATCH (c:Component {component_id: $component_id}), (p)
+    MATCH (c:Component {component_id: $component_id}), (p:InParameter)
     WHERE elementId(p) = $parameter_internal_id
     MERGE (c)-[:DATA]->(p)
     RETURN c.component_id AS component_id, p.parameter_id AS parameter_id
@@ -48,7 +48,7 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
     """
     component_id = clean_component_id(prefixed_component_id)
     query = """
-    MATCH (c:Component {component_id: $component_id}), (p)
+    MATCH (c:Component {component_id: $component_id}), (p: OutParameter)
     WHERE elementId(p) = $parameter_internal_id
     MERGE (c)<-[:DATA]-(p)
     RETURN c.component_id AS component_id, p.parameter_id AS parameter_id
@@ -86,7 +86,7 @@ def create_data_relationship(driver: Driver, from_internal_node_id: int, to_inte
         return record["id_1"], record["id_2"]
     
 
-def create_control_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int)  -> tuple[int,int]:
+def create_control_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int, component_id: str)  -> tuple[int,int]:
     """
     Creates a control dependency relationship in Neo4j between the two nodes with Neo4j internal IDs given as parameters.
     This relationship is an outgoing control edge from the node with internal ID from_internal_node_id
@@ -103,12 +103,12 @@ def create_control_relationship(driver: Driver, from_internal_node_id: int, to_i
     query = """
     MATCH (a), (b)
     WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
-    MERGE (a)-[:CONTROL]->(b)
+    MERGE (a)-[:CONTROL {component_id: $component_id}]->(b)
     RETURN elementId(a) AS id_1, elementId(b) AS id_2
     """
     with driver.session() as session:
         result = session.run(query, from_internal_node_id=from_internal_node_id,
-                             to_internal_node_id=to_internal_node_id)
+                             to_internal_node_id=to_internal_node_id, component_id=component_id)
         record = result.single()
         return record["id_1"], record["id_2"]
     
@@ -128,7 +128,7 @@ def create_has_child_relationship(driver: Driver, parent_internal_node_id: int, 
     query = """
     MATCH (parent), (child)
     WHERE elementId(parent) = $parent_id AND elementId(child) = $child_id
-    CREATE (parent)-[:HAS_CHILD]->(child)
+    MERGE (parent)-[:HAS_CHILD]->(child)
     RETURN elementId(parent) AS id_1, elementId(child) AS id_2
     """
     with driver.session() as session:
@@ -136,3 +136,25 @@ def create_has_child_relationship(driver: Driver, parent_internal_node_id: int, 
                              child_id=child_internal_node_id)
         record = result.single()
         return record["id_1"], record["id_2"]
+    
+def simplify_data_and_control_edges(driver: Driver):
+    with driver.session() as session:
+        create_data_edges_query = """
+        MATCH (n:Data)<-[inEdge:DATA]-(n1), (n)-[outEdge:DATA]->(n2)
+        WITH n, n1, n2, n.component_id AS component_id, n.data_id AS data_id
+        MERGE (n1)-[newEdge:DATA {component_id: component_id, data_id: data_id}]->(n2)
+        """
+        session.run(create_data_edges_query)
+
+        create_control_edges_query = """
+        MATCH (n:Data)<-[inEdge:CONTROL]-(n1), (n)-[outEdge:DATA]->(n2)
+        WITH n, n1, n2, n.component_id AS component_id, n.data_id AS data_id
+        MERGE (n1)-[newEdge:CONTROL {component_id: component_id, data_id: data_id}]->(n2)
+        """
+        session.run(create_control_edges_query)
+        
+        delete_data_query = """
+        MATCH (n:Data)
+        DETACH DELETE n
+        """
+        session.run(delete_data_query)

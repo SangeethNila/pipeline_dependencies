@@ -4,12 +4,12 @@ from neo4j import Driver
 from neo4j_queries.edge_queries import create_has_child_relationship
 from neo4j_queries.node_queries import create_ast_node
 
-def traverse_and_create(driver: Driver, tree, parent_node_id=None):
+def traverse_and_create(driver: Driver, component_id: str, tree, parent_node_id=None):
     # Create a Neo4j node for the current tree node
     rule_name = type(tree).__name__
     text = tree.getText() if tree.getText() else None
 
-    current_node_id = create_ast_node(driver, rule_name, text)
+    current_node_id = create_ast_node(driver, component_id, rule_name, text)
 
     # If there's a parent, create a relationship
     if parent_node_id is not None:
@@ -18,7 +18,7 @@ def traverse_and_create(driver: Driver, tree, parent_node_id=None):
     # Recursively process all children
     for i in range(tree.getChildCount()):
         child = tree.getChild(i)
-        traverse_and_create(driver, child, current_node_id)
+        traverse_and_create(driver, component_id, child, current_node_id)
 
 
 def traverse_when_statement_extract_dependencies(tree: ParserRuleContext) -> list[tuple[str,str]]:
@@ -41,7 +41,7 @@ def traverse_when_statement_extract_dependencies(tree: ParserRuleContext) -> lis
     ref_list = []
 
     # The "when" field of a step can reference:
-    # - inputs (parameters) of that step in the form input.[param ID]
+    # - inputs (parameters) of that step in the form inputs.[param ID]
     # - outputs of different steps in the form steps.[step ID].outputs.[output ID]
     if rule_name == "MemberDotExpressionContext":
         split_text = text.split(".")

@@ -1,6 +1,6 @@
 from pathlib import Path
 from neo4j import Driver
-from neo4j_queries.node_queries import ensure_data_node, ensure_parameter_node
+from neo4j_queries.node_queries import ensure_data_node, ensure_in_parameter_node
 from neo4j_queries.edge_queries import create_data_relationship, create_in_param_relationship
 
 def create_input_nodes_and_relationships(driver: Driver, input_id: str, component_id: str) -> None:
@@ -18,7 +18,7 @@ def create_input_nodes_and_relationships(driver: Driver, input_id: str, componen
         component_id (str): the unique ID of the CWL component (its path)
     """
     # Create in-parameter with the parameter ID as defined in the component and component ID equal to the path of the componet
-    param_node = ensure_parameter_node(driver, input_id, component_id, 'in')
+    param_node = ensure_in_parameter_node(driver, input_id, component_id)
     param_node_internal_id = param_node[0]
     # Create a data edge from the component node to the in-parameter node
     create_in_param_relationship(driver, component_id, param_node_internal_id)

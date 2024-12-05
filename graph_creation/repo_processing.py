@@ -1,6 +1,7 @@
 from neo4j import Driver
 from graph_creation.cwl_parsing import get_cwl_from_repo
-from graph_creation.cwl_processing import process_cwl_inputs, process_cwl_outputs, process_cwl_steps
+from graph_creation.cwl_processing import process_cwl_expression, process_cwl_inputs, process_cwl_outputs, process_cwl_steps
+from neo4j_queries.edge_queries import simplify_data_and_control_edges
 from neo4j_queries.node_queries import ensure_component_node
 
 def process_repos(repo_list: list[str], driver: Driver) -> None:
@@ -23,3 +24,7 @@ def process_repos(repo_list: list[str], driver: Driver) -> None:
             process_cwl_outputs(driver, entity)
             if entity['class'] == 'Workflow':
                 process_cwl_steps(driver, entity)
+            # elif entity['class'] == 'ExpressionTool':
+            #     process_cwl_expression(driver, entity)
+
+    simplify_data_and_control_edges(driver)
