@@ -140,16 +140,16 @@ def create_has_child_relationship(driver: Driver, parent_internal_node_id: int, 
 def simplify_data_and_control_edges(driver: Driver):
     with driver.session() as session:
         create_data_edges_query = """
-        MATCH (n:Data)<-[inEdge:DATA]-(n1), (n)-[outEdge:DATA]->(n2)
+        MATCH (n1)-[:DATA]->(n:Data), (n)-[:DATA]->(n2)
         WITH n, n1, n2, n.component_id AS component_id, n.data_id AS data_id
-        MERGE (n1)-[newEdge:DATA {component_id: component_id, data_id: data_id}]->(n2)
+        MERGE (n1)-[:DATA {component_id: component_id, data_id: data_id}]->(n2)
         """
         session.run(create_data_edges_query)
 
         create_control_edges_query = """
-        MATCH (n:Data)<-[inEdge:CONTROL]-(n1), (n)-[outEdge:DATA]->(n2)
+        MATCH (n1)-[:CONTROL]->(n:Data), (n)-[:DATA]->(n2)
         WITH n, n1, n2, n.component_id AS component_id, n.data_id AS data_id
-        MERGE (n1)-[newEdge:CONTROL {component_id: component_id, data_id: data_id}]->(n2)
+        MERGE (n1)-[:CONTROL {component_id: component_id, data_id: data_id}]->(n2)
         """
         session.run(create_control_edges_query)
         
