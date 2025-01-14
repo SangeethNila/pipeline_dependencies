@@ -1,133 +1,153 @@
 from neo4j import Driver
-from graph_creation.cst_processing import traverse_and_create, traverse_when_statement_extract_dependencies
-from graph_creation.utils import create_input_nodes_and_relationships, process_source_relationship, resolve_relative_path
-from neo4j_queries.node_queries import ensure_component_node, ensure_data_node, ensure_in_parameter_node, ensure_out_parameter_node, get_wf_data_nodes_from_step_in_param
+from graph_creation.cst_processing import traverse_when_statement_extract_dependencies
+from graph_creation.utils import process_in_param, process_parameter_source
+from neo4j_queries.node_queries import ensure_component_node, ensure_in_parameter_node, ensure_out_parameter_node
 from neo4j_queries.edge_queries import create_control_relationship, create_data_relationship, create_out_param_relationship
-from pathlib import Path
 
+from neo4j_queries.utils import get_is_workflow
 from parsers.javascript_parsing import parse_javascript_expression_string, parse_javascript_string
+
 
 # TODO: deal with inputBindings
 def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
     """
-    Processes the inputs of a CWL component (Workflow, CommandLineTool, or ExpressionTool)
-    For each input the following nodes and edges are created:
-    - an in-parameter node with the parameter ID as defined in the component and component ID equal to the path of the componet
-    - a data node with component ID of the component and data ID equal to the parameter ID
-    - a data edge from the component node to the in-parameter node
-    - a data edge from the data node to the the in-parameter node
+    Processes the inputs of a CWL  entity, either as a list or a dictionary of inputs,
+    and processes each input parameter by calling `process_in_param`.
 
     Parameters:
-        driver (Driver): the driver used to connect to Neo4j
-        cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
+        driver (Driver): The Neo4j driver used to execute queries.
+        cwl_entity (dict): A dictionary representing a CWL entity, which includes an 'inputs' key containing
+                           either a list or dictionary of input parameters.
+
+    Returns:
+        None
     """
     component_id = cwl_entity['path']
-    # Inputs can be defined a list or a dictionary
-    if type(cwl_entity['inputs']) == list:
-        # List of dictionaries
-        # each element is identifiable via the key 'id'
+    is_workflow = get_is_workflow(cwl_entity)
+    # Process the inputs based on their type (list or dictionary)
+    if isinstance(cwl_entity['inputs'], list):
+        # If 'inputs' is a list, iterate over each input (which is expected to be a dictionary)
         for input in cwl_entity['inputs']:
-            if type(input) == dict:
-                create_input_nodes_and_relationships(driver, input['id'], component_id)
-    elif type(cwl_entity['inputs']) == dict:
-        # Dictionary where each key is the ID of the input
-        # the value is a dictionary containing other properties
+            if isinstance(input, dict):
+                process_in_param(driver, input['id'], component_id, is_workflow)
+    elif isinstance(cwl_entity['inputs'], dict):
+        # If 'inputs' is a dictionary, iterate over the keys (which are the input IDs)
         for key in cwl_entity['inputs'].keys():
-            create_input_nodes_and_relationships(driver, key, component_id)
+            process_in_param(driver, key, component_id, is_workflow)
 
 # TODO: deal with outputBindings
-def process_cwl_outputs(driver: Driver, cwl_entity: dict) -> None:
+def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup) -> None:
     """
-    Processes the outputs of a CWL component (Workflow, CommandLineTool, or ExpressionTool)
-    For each output the following nodes and edges are created:
-    - an out-parameter node with the parameter ID as defined in the component and component ID equal to the path of the componet
-    - a data node with component ID of the component and data ID equal to output source defined in the component
-    - a data edge from the out-parameter node to the component node
-    - a data edge from the out-parameter node to the data node
+    Processes the output parameters of a CWL entity by creating the necessary nodes 
+    and relationships for each output parameter in a graph or database. The function handles both singular and 
+    list-based output sources, ensuring that each output is linked to its corresponding source or sources.
+
+    For each output in the CWL entity:
+        - An out-parameter node is created for the output.
+        - If the CWL entity is not a workflow, a relationship is created between the component node and the output parameter.
+        - If the output contains an 'outputSource', the function processes the relationship between the output 
+          parameter and its source(s). The 'outputSource' can either be a single source ID or a list of source IDs.
 
     Parameters:
-        driver (Driver): the driver used to connect to Neo4j
-        cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
+        driver (Driver): The Neo4j driver used to execute queries
+        cwl_entity (dict): A dictionary representing a CWL entity, which includes:
+            - 'path' (str): The path to the CWL file, used as the component ID.
+            - 'outputs' (list): A list of output parameters. Each output is a dictionary containing:
+                - 'id' (str): The unique identifier of the output parameter.
+                - 'outputSource' (str or list of str): The source(s) for the output parameter, which can be a single
+                  source ID or a list of source IDs.
+        step_lookup (dict): A dictionary that maps step IDs to their corresponding resolved paths. This is used to 
+                             resolve the source ID(s) in the 'outputSource' field to their correct locations.
+
+    Returns:
+        None
     """
     component_id = cwl_entity['path']
     for output in cwl_entity['outputs']:
-        if type(output) == dict:
+        if isinstance(output, dict):
             # Create out-parameter node with the parameter ID as defined in the component
             # and component ID equal to the path of the componet
-            param_node = ensure_out_parameter_node(driver, output['id'], component_id)
-            param_node_internal_id = param_node[0]
-            # Create out-parameter node with the parameter ID as defined in the component
-            # and component ID equal to the path of the componet
-            create_out_param_relationship(driver, component_id, param_node_internal_id)
-            # Create a data node with component ID of the component and data ID equal to output source defined in the component
-            # and a data edge from the out-parameter node to the data node
+            out_param_node = ensure_out_parameter_node(driver, output['id'], component_id)
+            out_param_node_internal_id = out_param_node[0]
+
+            # If it's not a workflow, create a relationship between the component and the output parameter
+            is_worflow = get_is_workflow(cwl_entity)
+            if not is_worflow:
+                create_out_param_relationship(driver, component_id, out_param_node_internal_id)
+
+            # If the output has an 'outputSource', process the relationship(s) to the source(s)
             if 'outputSource' in output:
-                # the output source can be a singular ID or a list of IDs
-                if type(output['outputSource']) == str:
-                    process_source_relationship(driver, output['outputSource'], component_id, param_node_internal_id)
-                elif type(output['outputSource']) == list:
+                # The output source can be a singular ID or a list of IDs
+                if isinstance(output['outputSource'], str):
+                    source_id = output['outputSource']
+                    process_parameter_source(driver, out_param_node_internal_id, source_id, component_id, step_lookup)
+                elif isinstance(output['outputSource'], list):
                     for source_id in output['outputSource']:
-                        process_source_relationship(driver, source_id, component_id, param_node_internal_id)
+                        process_parameter_source(driver, out_param_node_internal_id, source_id, component_id, step_lookup)
    
-def process_cwl_steps(driver: Driver, cwl_entity: dict) -> None:    
+def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], step_lookup) -> None:   
     """
-    Processes the steps of a CWL Workflow component (which we will refer to as outer workflow component). 
-    A step can be a Workflow, CommandLineTool or ExpressionTool. 
-    For each step, a component node is created with component ID equal to the path of the step.
-    Then, the lists of inputs and outputs are processed.
+    Processes the steps of a CWL entity, creating necessary nodes and relationships 
+    for each step. The function handles the inputs, outputs, and control dependencies associated with each step 
+    in the workflow
 
-    - For each input, the following nodes and edges are created:
-        - in-parameter node with ID as defined in the component and component ID equal to the path of the step
-        - a data edge from the step component node to the in-parameter node
-        - potentially a data node corresponding to the source of the input, with ID equal to the source ID defined in the outer workflow 
-        and component ID equal to the path of the outer workflow
-        - potentially a data edge from the in-parameter node to the data node of the source
-
-    - If the step has a "when" field, then the JS expression is parsed and its dependencies are extracted.
-        - The step is control dependent on data node x with component_id equal to the outer workflow id if:
-            - the when expression mentions a step parameter which is data dependent on x
-            - the when expression mentions the data_id of x
-        - A control edge is created from the step component node to the data node x.
-
-    - For each output, the following nodes and edges are created:
-        - out-parameter node with ID as defined in the component and component ID equal to the path of the step
-        - a data edge from the out-parameter node to the step component node
-        - a data node representing the outer-workflow-level output, with ID equal to [step id]/[output id as defined in workflow]
-        and component ID equal to the path of the outer workflow
-        - a data edge from the out-parameter node to the data node
+    For each step in the CWL entity:
+        - A component node is created for the step if it corresponds to a tool (identified via tool_paths)
+        - The inputs are processed by creating in-parameter nodes and establishing relationships with the step
+        - The "when" field (control dependencies) is processed by extracting the dependent parameters or outputs 
+          and creating control relationships
+        - The outputs are processed by creating out-parameter nodes and establishing relationships with the step
 
     Parameters:
-        driver (Driver): the driver used to connect to Neo4j
-        cwl_entity (dict): the dictionary containing the parsed contents of the CWL component
-    """
+        driver (Driver): The Neo4j driver used to execute queries
+        cwl_entity (dict): A dictionary representing a CWL entity, which includes:
+            - 'path' (str): The path to the CWL file, used as the component ID.
+            - 'steps' (list): A list of steps in the workflow, each step being a dictionary containing:
+                - 'id' (str): The unique identifier for the step.
+                - 'in' (list): A list of inputs for the step.
+                - 'out' (list): A list of outputs for the step.
+                - 'when' (str or dict): A conditional expression controlling the execution of the step.
+        tool_paths (list[str]): A list of paths that correspond to tool steps. These paths are used to determine 
+                                whether a step corresponds to a tool or not.
+        step_lookup (dict): A dictionary that maps step IDs to their resolved paths. This is used to resolve 
+                             the actual paths of steps when processing their inputs, outputs, and control dependencies.
+
+    Returns:
+        None
+    """ 
+    component_id = cwl_entity['path']
+
     for step in cwl_entity['steps']:
 
-        # Retrieve path of the step
-        workflow_folder = Path(cwl_entity['path']).parent
-        full_step_path = workflow_folder / Path(step['run'])
-        step_path = str(resolve_relative_path(full_step_path))
+        # Get the resolved path of the step from the step_lookup
+        step_path = step_lookup[step['id']]
 
-        # Create the step component node with ID equal to the step 
-        s_node = ensure_component_node(driver, step_path)
-        s_node_internal_id = s_node[0]
+        is_tool = step_path in tool_paths
+
+        # Create the step component node if it's a tool
+        if step_path in tool_paths:
+            is_tool = True
+            s_node = ensure_component_node(driver, step_path)
+            s_node_internal_id = s_node[0]
 
         # Process the list of inputs of the step 
         for input in step['in']:
+            process_in_param(driver, input['id'], step_path, not is_tool)
             # Create in-parameter node with ID as defined in the component and component ID equal to the path of the step
             param_node = ensure_in_parameter_node(driver, input['id'], step_path)
             param_node_internal_id = param_node[0]
-            # Create a data edge from the step component node to the in-parameter node
-            create_data_relationship(driver, s_node_internal_id, param_node_internal_id)
+            if is_tool:
+                # Create a data edge from the step component node to the in-parameter node
+                create_data_relationship(driver, s_node_internal_id, param_node_internal_id)
 
             # Inputs can have one or multiple data sources (data nodes)
-            # A data edge is drawn from the in-parameter node to the data node of the source
             if 'source' in input:
-                if type(input['source']) == str:
+                if isinstance(input['source'], str):
                     source_id = input['source']
-                    process_source_relationship(driver, source_id, cwl_entity['path'], param_node_internal_id)
-                elif type(input['source']) == list:
+                    process_parameter_source(driver, param_node_internal_id, source_id, component_id, step_lookup)
+                elif isinstance(input['source'], list):
                     for source_id in input['source']:
-                        process_source_relationship(driver, source_id, cwl_entity['path'], param_node_internal_id)
+                        process_parameter_source(driver, param_node_internal_id, source_id, component_id, step_lookup)
 
         # Process the "when" field, aka control dependencies
         if 'when' in step:
@@ -141,9 +161,9 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict) -> None:
                 if ref[0] == "parameter":
                     input_data = ensure_in_parameter_node(driver, ref_id, step_path)[0]
                     nodes.append(input_data)
-                elif ref[0] == "step_output":
-                    step_output = ensure_data_node(driver, ref_id, cwl_entity['path'])[0]
-                    nodes.append(step_output)
+                # elif ref[0] == "step_output":
+                #     step_output = ensure_out_parameter_node(driver, ref_id, cwl_entity['path'])[0]
+                #     nodes.append(step_output)
 
             for node in nodes:
                 create_control_relationship(driver, s_node_internal_id, node, cwl_entity['path'])
@@ -151,21 +171,17 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict) -> None:
         # Process the list of outputs of the step
         for output in step['out']:
             # An output can be defined as a dictionary or simply as a string (ID only)
-            if type(output) == dict:
+            if isinstance(output, dict):
                 output_id = output['id']
             else:
                 output_id = output
+
             # Create out-parameter node with ID as defined in the component and component ID equal to the path of the step
             param_node = ensure_out_parameter_node(driver, output_id, step_path)
             param_node_internal_id = param_node[0]
-            # Create a data edge from out-parameter node to the step component node
-            create_data_relationship(driver, param_node_internal_id, s_node_internal_id)
-            # Create data node with id equal to step_id/output_id and  component ID equal to the path of the outer workflow
-            outer_output_id = f"{step['id']}/{output_id}"
-            data_node = ensure_data_node(driver, outer_output_id, cwl_entity['path'])
-            data_node_internal_id = data_node[0]
-            # Create a data edge from the data node to the  out-parameter node 
-            create_data_relationship(driver, data_node_internal_id, param_node_internal_id)
+            if is_tool:
+                # Create a data edge from out-parameter node to the step component node
+                create_data_relationship(driver, param_node_internal_id, s_node_internal_id)
 
 def process_cwl_expression(driver: Driver, entity: dict) -> None:
     expression = entity['expression']

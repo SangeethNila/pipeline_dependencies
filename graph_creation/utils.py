@@ -1,50 +1,76 @@
 from pathlib import Path
 from neo4j import Driver
-from neo4j_queries.node_queries import ensure_data_node, ensure_in_parameter_node
-from neo4j_queries.edge_queries import create_data_relationship, create_in_param_relationship
+from neo4j_queries.node_queries import ensure_in_parameter_node, ensure_out_parameter_node
+from neo4j_queries.edge_queries import create_data_relationship_with_id, create_in_param_relationship
 
-def create_input_nodes_and_relationships(driver: Driver, input_id: str, component_id: str) -> None:
+def process_step_lookup(cwl_entity: dict) -> dict:
     """
-    Processes a single input tied to a specific CWL component. 
-    The following nodes and edges are created:
-    - an in-parameter node with the parameter ID as defined in the component and component ID equal to the path of the componet
-    - a data node with component ID of the component and data ID equal to the parameter ID
-    - a data edge from the component node to the in-parameter node
-    - a data edge from the data node to the the in-parameter node
+    Processes the steps in a CWL entity to create a lookup dictionary mapping step IDs to their resolved file paths.
 
     Parameters:
-        driver (Driver): the driver used to connect to Neo4j
-        input_id (str): the ID of the input as defined in the CWL component
-        component_id (str): the unique ID of the CWL component (its path)
-    """
-    # Create in-parameter with the parameter ID as defined in the component and component ID equal to the path of the componet
-    param_node = ensure_in_parameter_node(driver, input_id, component_id)
-    param_node_internal_id = param_node[0]
-    # Create a data edge from the component node to the in-parameter node
-    create_in_param_relationship(driver, component_id, param_node_internal_id)
-    # Create a data node with component ID of the component and data ID equal to the parameter ID
-    data_node = ensure_data_node(driver, input_id, component_id)
-    data_node_internal_id = data_node[0]
-    # Create a data edge from the data node to the the in-parameter node
-    create_data_relationship(driver, data_node_internal_id, param_node_internal_id)
+        cwl_entity (dict): A dictionary representing a CWL entity, which includes a 'steps' key containing
+                           the steps of the workflow and a 'path' key with the path to the workflow file
 
-def process_source_relationship(driver: Driver, source_id: str, component_id: str, param_node_internal_id: int) -> None:
+    Returns:
+        dict: A dictionary where each key is the ID of the step in the context of the workflow, and the value is the resolved file path of the step
     """
-    Processes a source relationship between a data node and a parameter node.
-    The data node does not need to exist already, while the parameter node must have already been created.
-    The following nodes and edges are created:
-    - a data node with ID equal to source_id and component ID equal to the path of the component it belongs to
-    - a data edge from the parameter node to the data node
+    step_lookup = {}
+    for step in cwl_entity['steps']:
+        # Retrieve the directory containing the workflow file
+        workflow_folder = Path(cwl_entity['path']).parent
+        # Resolve the full path of the step file by combining the workflow folder and the step's 'run' path
+        full_step_path = workflow_folder / Path(step['run'])
+        # Resolve the path (deal with "./" and "../")
+        step_path = str(resolve_relative_path(full_step_path))
+        step_lookup[step['id']] = step_path
+    return step_lookup
+
+def process_in_param(driver: Driver, param_id: str, component_id: str, is_workflow: bool):
+    """
+    Processes an input parameter by ensuring its node exists and optionally creating a relationship 
+    between the component and the parameter node.
 
     Parameters:
-        driver (Driver): the driver used to connect to Neo4j
-        source_id (str): the ID of the data that functions as a source for the parameter
-        component_id (str): the unique ID of the CWL component (its path)
-        param_node_internal_id (int): the unique ID of the parameter node as defined internally by Neo4j
+        driver: The database or graph driver used to execute queries
+        param_id (str): The unique identifier of the input parameter
+        component_id (str): The ID of the component to which the parameter belongs
+        is_workflow (bool): Indicates if the component is a workflow. If True, no relationship is created
+
+    Returns:
+        None
     """
-    data_node = ensure_data_node(driver, source_id, component_id)
-    data_node_internal_id = data_node[0]
-    create_data_relationship(driver, param_node_internal_id, data_node_internal_id)
+    param_node = ensure_in_parameter_node(driver, param_id, component_id)
+    if not is_workflow:
+        create_in_param_relationship(driver, component_id, param_node[0])
+
+def process_parameter_source(driver: Driver, param_node_internal_id: int, source_id: str, component_id: str, step_lookup: dict) -> None:
+    """
+    Processes a parameter source by creating a data relationship between a parameter node and its source.
+
+    Parameters:
+        driver (Driver): The Neo4j driver used to execute queries
+        param_node_internal_id (int): The internal ID of the parameter node to which the relationship is being created
+        source_id (str): The source identifier, which can be a single identifier (in case the source is an in-param of the workflow)
+            or include a subcomponent (e.g., "source" or "sub_component/source")
+        component_id (str): The ID of the component owning the parameter node
+        step_lookup (dict): A mapping of subcomponent identifiers to their respective IDs within the workflow that calls them
+
+    Returns:
+        None
+    """
+    # Parse the source_id to identify whether it refers to a workflow parameter or an output of a subcomponent (subcomponent/id)
+    source_parsed = source_id.split("/")
+    if len(source_parsed) == 1:
+        # Ensure the source exists in the parameter node and retrieve it
+        source_param_node = ensure_in_parameter_node(driver, source_parsed[0], component_id)[0]
+    else:
+        # If source_id refers to an output subcomponent/sourc
+        # Retrieve the subcomponent ID from the step_lookup dictionary
+        sub_component_id = step_lookup[source_parsed[0]]
+        # Ensure the source exists in the output parameter node for the subcomponent
+        source_param_node = ensure_out_parameter_node(driver, source_parsed[1], sub_component_id)[0]
+    # Create a relationship between the parameter node and its source
+    create_data_relationship_with_id(driver, param_node_internal_id, source_param_node, component_id)
 
 def resolve_relative_path(path: Path)-> Path:
     """
