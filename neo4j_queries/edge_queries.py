@@ -21,7 +21,7 @@ def create_in_param_relationship(driver: Driver, prefixed_component_id: str, par
     query = """
     MATCH (c:Component {component_id: $component_id}), (p:InParameter)
     WHERE elementId(p) = $parameter_internal_id
-    MERGE (c)-[:DATA]->(p)
+    MERGE (c)-[:DATA {component_id: $component_id}]->(p)
     RETURN c.component_id AS component_id, p.parameter_id AS parameter_id
     """
     with driver.session() as session:
@@ -48,38 +48,13 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
     query = """
     MATCH (c:Component {component_id: $component_id}), (p: OutParameter)
     WHERE elementId(p) = $parameter_internal_id
-    MERGE (c)<-[:DATA]-(p)
+    MERGE (c)<-[:DATA {component_id: $component_id}]-(p)
     RETURN c.component_id AS component_id, p.parameter_id AS parameter_id
     """
     with driver.session() as session:
         result = session.run(query, component_id=component_id, 
                              parameter_internal_id=parameter_internal_id)
     
-def create_data_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int)  -> tuple[int,int]:
-    """
-    Creates a data dependency relationship in Neo4j between the two nodes with Neo4j internal IDs given as parameters.
-    This relationship is an outgoing data edge from the node with internal ID from_internal_node_id
-    to the node with internal ID to_internal_node_id.
-
-    Parameters:
-        driver (Driver): the Neo4j driver
-        from_internal_node_id (int): the internal Neo4j ID of the first node
-        to_internal_node_id (int): the internal Neo4j ID of the second node
-
-    Returns:
-        tuple[int,int]: from_internal_node_id, to_internal_node_id
-    """
-    query = """
-    MATCH (a), (b)
-    WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
-    MERGE (a)-[:DATA]->(b)
-    RETURN elementId(a) AS id_1, elementId(b) AS id_2
-    """
-    with driver.session() as session:
-        result = session.run(query, from_internal_node_id=from_internal_node_id,
-                             to_internal_node_id=to_internal_node_id)
-        record = result.single()
-        return record["id_1"], record["id_2"]
     
 def create_data_relationship_with_id(driver: Driver, from_internal_node_id: int, to_internal_node_id: int, id: str)  -> tuple[int,int]:
     """
@@ -95,6 +70,7 @@ def create_data_relationship_with_id(driver: Driver, from_internal_node_id: int,
     Returns:
         tuple[int,int]: from_internal_node_id, to_internal_node_id
     """
+    clean_id = clean_component_id(id)
     query = """
     MATCH (a), (b)
     WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
@@ -103,7 +79,7 @@ def create_data_relationship_with_id(driver: Driver, from_internal_node_id: int,
     """
     with driver.session() as session:
         result = session.run(query, from_internal_node_id=from_internal_node_id,
-                             to_internal_node_id=to_internal_node_id, component_id= id)
+                             to_internal_node_id=to_internal_node_id, component_id= clean_id)
         record = result.single()
         return record["id_1"], record["id_2"]
     
