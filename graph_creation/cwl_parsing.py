@@ -40,7 +40,7 @@ def get_cwl_from_repo(repo_path: str) -> tuple[list[dict],list[dict]]:
             yaml_dict['path'] = path_in_str
 
             # Categorize the file based on its 'class' field
-            if get_is_workflow(yaml_dict['class']):
+            if get_is_workflow(yaml_dict):
                 cwl_workflow_entities.append(yaml_dict)
             else:
                 cwl_tool_entities.append(yaml_dict)
