@@ -3,6 +3,8 @@ from neo4j import Driver
 from neo4j_queries.node_queries import ensure_in_parameter_node, ensure_out_parameter_node
 from neo4j_queries.edge_queries import create_data_relationship_with_id, create_in_param_relationship
 
+GITLAB_ASTRON ='https://git.astron.nl'
+
 def process_step_lookup(cwl_entity: dict) -> dict:
     """
     Processes the steps in a CWL entity to create a lookup dictionary mapping step IDs to their resolved file paths.

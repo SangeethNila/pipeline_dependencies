@@ -106,7 +106,7 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
                 - 'id' (str): The unique identifier for the step.
                 - 'in' (list): A list of inputs for the step.
                 - 'out' (list): A list of outputs for the step.
-                - 'when' (str or dict): A conditional expression controlling the execution of the step.
+                - 'when' (str, optional): A conditional expression controlling the execution of the step.
         tool_paths (list[str]): A list of paths that correspond to tool steps. These paths are used to determine 
                                 whether a step corresponds to a tool or not.
         step_lookup (dict): A dictionary that maps step IDs to their resolved paths. This is used to resolve 
@@ -183,7 +183,14 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
                 # Create a data edge from out-parameter node to the step component node
                 create_data_relationship_with_id(driver, param_node_internal_id, s_node_internal_id, step_path)
 
+
+def process_base_commands(driver, entity):
+    return
+
 def process_cwl_expression(driver: Driver, entity: dict) -> None:
     expression = entity['expression']
     expr_tree = parse_javascript_string(expression)
     # traverse_and_create(driver, entity['path'], expr_tree)
+
+def process_cwl_commandline(driver, entity):
+    return
