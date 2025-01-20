@@ -5,6 +5,8 @@ import os
 import gitlab
 import subprocess
 
+from graph_creation.utils import GITLAB_ASTRON
+
 def clone_repos(repo_list: list[str], folder_name: str) -> None:
     """
     Given a list of relative paths to ASTRON GitLab repositories and the name of a folder,
@@ -14,7 +16,7 @@ def clone_repos(repo_list: list[str], folder_name: str) -> None:
         repo_list (list[str]): list of relative paths to ASTRON GitLab repositories
         folder_name (str): the name of the folder to clone the repos into
     """
-    gl = gitlab.Gitlab('https://git.astron.nl')
+    gl = gitlab.Gitlab(GITLAB_ASTRON)
     projects = gl.projects.list(iterator=True, get_all=True)
     for project in projects:
         repo_name = project.attributes['path_with_namespace']
@@ -23,9 +25,11 @@ def clone_repos(repo_list: list[str], folder_name: str) -> None:
             subprocess.call(['git', 'clone', git_url, f'./{folder_name}/{repo_name}'])
 
 if __name__ == '__main__':
-    relevant_repos = ['ldv/imaging_compress_pipeline']
+    relevant_repos = ['ldv/imaging_compress_pipeline'
+                      , 'RD/LINC'
+                      ]
     folder = 'repos'
-    clone_repos(relevant_repos, folder)
+    # clone_repos(relevant_repos, folder)
 
     # Get the authentication details for Neo4j instance
     load_status = dotenv.load_dotenv("Neo4j-25ebc0db-Created-2024-11-17.txt")
