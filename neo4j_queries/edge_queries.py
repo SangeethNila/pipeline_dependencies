@@ -110,30 +110,31 @@ def create_control_relationship(driver: Driver, from_internal_node_id: int, to_i
         record = result.single()
         return record["id_1"], record["id_2"]
     
-def create_has_child_relationship(driver: Driver, parent_internal_node_id: int, child_internal_node_id: int)  -> tuple[int,int]:
-    """
-    Creates a "has child" relationship in Neo4j between the two nodes with Neo4j internal IDs given as parameters.
-    This relationship is an outgoing "has child" edge from the parent node to the child node.
 
-    Parameters:
-        driver (Driver): the Neo4j driver
-        parent_internal_node_id (int): the internal Neo4j ID of the parent node
-        child_internal_node_id (int): the internal Neo4j ID of the child node
-
-    Returns:
-        tuple[int,int]: parent_internal_node_id, child_internal_node_id
-    """
+    
+def create_references_relationship(driver: Driver, prefixed_component_id: int, git_internal_node_id: int, reference: str)  -> tuple[int,int]:
+    component_id = clean_component_id(prefixed_component_id)
     query = """
-    MATCH (parent), (child)
-    WHERE elementId(parent) = $parent_id AND elementId(child) = $child_id
-    MERGE (parent)-[:HAS_CHILD]->(child)
-    RETURN elementId(parent) AS id_1, elementId(child) AS id_2
+    MATCH (component: Component), (git)
+    WHERE component.component_id = $component_id AND elementId(git) = $git_internal_node_id
+    MERGE (component)-[:REFERENCES{component_id: $component_id, reference: $reference}]->(git)
+    RETURN elementId(component) AS id_1, elementId(git) AS id_2
     """
     with driver.session() as session:
-        result = session.run(query, parent_id=parent_internal_node_id,
-                             child_id=child_internal_node_id)
+        result = session.run(query, component_id=component_id,
+                             git_internal_node_id=git_internal_node_id, reference=reference)
         record = result.single()
         return record["id_1"], record["id_2"]
+    
+def clean_relationship(driver: Driver)  -> tuple[int,int]:
+    query = """
+    MATCH ()-[r:REFERENCES]-()
+    WHERE r.reference IS NULL
+    DELETE r
+    """
+    with driver.session() as session:
+        session.run(query)
+    
     
 def simplify_data_and_control_edges(driver: Driver):
     with driver.session() as session:

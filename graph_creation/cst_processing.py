@@ -1,7 +1,6 @@
 from antlr4 import ParserRuleContext
 from neo4j import Driver
 
-from neo4j_queries.edge_queries import create_has_child_relationship
 from neo4j_queries.node_queries import create_ast_node
 
 def traverse_and_create(driver: Driver, component_id: str, tree, parent_node_id=None):
@@ -12,8 +11,8 @@ def traverse_and_create(driver: Driver, component_id: str, tree, parent_node_id=
     current_node_id = create_ast_node(driver, component_id, rule_name, text)
 
     # If there's a parent, create a relationship
-    if parent_node_id is not None:
-        create_has_child_relationship(driver, parent_node_id, current_node_id)
+    # if parent_node_id is not None:
+    # create_has_child_relationship(driver, parent_node_id, current_node_id)
 
     # Recursively process all children
     for i in range(tree.getChildCount()):

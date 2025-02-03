@@ -185,13 +185,74 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
                 create_data_relationship_with_id(driver, param_node_internal_id, s_node_internal_id, step_path)
 
 
-def process_base_commands(driver, entity):
-    return
+def process_cwl_base_commands(driver, entity, links):
+    base_command_key = "baseCommand"
+    link_commands = links["commands"]
+    link_paths = links["paths"]
+    if base_command_key in entity:
+        commands = entity[base_command_key]
+        if isinstance(commands, list):
+            if commands:
+                first_command = commands[0]
+                all_commands = " ".join(commands)
+                extension = Path(first_command).suffix
+                if extension:
+                    for key, value in link_paths.items():
+                        if is_executable(key) and first_command in key:
+                            git_internal_node_id = ensure_git_node(driver, value)[0]
+                            create_references_relationship(driver, entity["path"], git_internal_node_id, all_commands)
+                            break
+                else:
+                    if first_command in link_commands:
+                        git_internal_node_id = ensure_git_node(driver, link_commands[first_command])[0]
+                        create_references_relationship(driver, entity["path"], git_internal_node_id, all_commands)
+        return commands
+    return None
 
-def process_cwl_expression(driver: Driver, entity: dict) -> None:
-    expression = entity['expression']
-    expr_tree = parse_javascript_string(expression)
-    # traverse_and_create(driver, entity['path'], expr_tree)
+def is_executable(path):
+    prefix = Path("\\usr\\local\\bin")
+    return Path(path).parts[:len(prefix.parts)] == prefix.parts
 
-def process_cwl_commandline(driver, entity):
-    return
+def get_executable(path):
+    prefix = Path("\\usr\\local\\bin")
+    if Path(path).parts[:len(prefix.parts)] == prefix.parts:
+        return Path(*Path(path).parts[len(prefix.parts):])
+
+def process_cwl_commandline(driver, entity, links):
+    commands = process_cwl_base_commands(driver, entity, links)
+    listing = None
+    if "requirements" in entity:
+        if "InitialWorkDirRequirement" in entity["requirements"]:
+            listing = entity["requirements"]["InitialWorkDirRequirement"]["listing"]
+        else:
+            init_work_dir = next((item for item in entity["requirements"] if item.get('class') == 'InitialWorkDirRequirement'), None)
+            if init_work_dir:
+                listing = init_work_dir["listing"]
+    if commands and listing:
+        entry_map = {entry["entryname"]: entry["entry"] for entry in listing if "entryname" in entry}
+        for command in commands:
+            if command in entry_map:
+                all_links = links["commands"] | links["paths"]
+                print(entry_map[command])
+                # Regular expression pattern to match POSIX file paths
+                # pattern = r'(?<![\'"\[])(/[\w/.-]+(?:\.[a-zA-Z0-9]+)?)(?![\'"\]])'
+
+                # # Find all POSIX paths in the bash script
+                # posix_paths = re.findall(pattern, entry_map[command])
+                # print(posix_paths)
+
+                for key, value in all_links.items():
+                    path = str(Path(key).as_posix())
+                    if bool(re.search(rf'\b{re.escape(path)}\b', entry_map[command])):
+                        print(f"created: {value}")
+                        git_internal_node_id = ensure_git_node(driver, value)[0]
+                        create_references_relationship(driver, entity["path"], git_internal_node_id, entry_map[command])
+                    if is_executable(key):
+                        executable = str(get_executable(key))
+                        if bool(re.search(rf'\b{re.escape(executable)}\b', entry_map[command])):
+                            print(f"created: {value}")
+                            git_internal_node_id = ensure_git_node(driver, value)[0]
+                            create_references_relationship(driver, entity["path"], git_internal_node_id, entry_map[command])
+    print()
+
+

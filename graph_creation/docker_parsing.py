@@ -12,24 +12,28 @@ def parse_all_dockerfiles(repo_path):
         all_commands.extend(commands)
     mentioned_repos = handle_git_clone_commands(all_commands)
     moves = handle_ln_commands(all_commands)
-    links = {}
+    links = {"paths": {}, "commands": {}}
+    link_paths = links["paths"]
+    link_commands = links["commands"]
     for repo_url in mentioned_repos["no-checkout"]:
         repo_name = get_repo_name(repo_url)
-        links[repo_name] = repo_url
+        link_commands[repo_name] = repo_url
         # print(f"Repository URL with --no-checkout: {repo_url}. Alias: {repo_name}")
     for (repo_url, repo_folder) in mentioned_repos["checkout"]:
         paths = list_repo_files_from_api(repo_url)
         for path in paths:
             full_path = Path(repo_folder) / Path(path)
-            links[str(full_path)] = repo_url
+            link_paths[str(full_path)] = repo_url
     for move in moves:
         from_position = move[0]
         to_position = move[1]
-        if from_position in links:
-            originating_repo = links[from_position]
-            links[to_position] = originating_repo
+        if from_position in link_paths:
+            originating_repo = link_paths[from_position]
+            link_paths[to_position] = originating_repo
         else:
             print(f"{from_position} is not a recognized path.")
+
+    return links
 
 def parse_dockerfile_run_commands(dockerfile_path):
     """Parse the Dockerfile and return a list of RUN commands."""

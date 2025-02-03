@@ -3,6 +3,7 @@ from graph_creation.cwl_parsing import get_cwl_from_repo
 from graph_creation.docker_parsing import parse_all_dockerfiles
 from graph_creation.utils import process_step_lookup
 from graph_creation.cwl_processing import process_cwl_commandline, process_cwl_inputs, process_cwl_outputs, process_cwl_steps
+from neo4j_queries.edge_queries import clean_relationship
 from neo4j_queries.node_queries import ensure_component_node
 from neo4j_queries.utils import get_is_workflow
 
@@ -24,12 +25,13 @@ def process_repos(repo_list: list[str], driver: Driver) -> None:
         None
     """
     for repo in repo_list:
-        parse_all_dockerfiles(repo)
+        links = parse_all_dockerfiles(repo)
         # Parse CWL files of current repo
         workflows, tools = get_cwl_from_repo(repo)
 
         # Extract tool paths for step processing later
         tool_paths = [item["path"] for item in tools]
+        clean_relationship(driver)
 
         # Combine workflows and tools into one list of entities to process
         all_entities = workflows + tools
@@ -48,4 +50,4 @@ def process_repos(repo_list: list[str], driver: Driver) -> None:
             # elif entity['class'] == 'ExpressionTool':
             #     process_cwl_expression(driver, entity)
             elif entity['class'] == 'CommandLineTool':
-                process_cwl_commandline(driver, entity)
+                process_cwl_commandline(driver, entity, links)

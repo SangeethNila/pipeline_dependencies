@@ -24,6 +24,17 @@ def ensure_component_node(driver: Driver, prefixed_component_id: str) -> tuple[i
         result = session.run(query, component_id=component_id)
         record = result.single()
         return record["node_internal_id"], record["component_id"]
+    
+def ensure_git_node(driver: Driver, git_url: str) -> tuple[int,str]:
+
+    query = """
+    MERGE (c:Git {git_url: $git_url})
+    RETURN elementId(c) AS node_internal_id, c.git_url AS git_url
+    """
+    with driver.session() as session:
+        result = session.run(query, git_url=git_url)
+        record = result.single()
+        return record["node_internal_id"], record["git_url"]
 
 def ensure_in_parameter_node(driver: Driver, node_id: str, prefixed_component_id: str, param_type: str = None) \
         -> tuple[int,str,str,str]: 
