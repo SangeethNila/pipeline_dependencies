@@ -21,7 +21,7 @@ def create_in_param_relationship(driver: Driver, prefixed_component_id: str, par
     query = """
     MATCH (c:Component {component_id: $component_id}), (p:InParameter)
     WHERE elementId(p) = $parameter_internal_id
-    MERGE (c)-[:DATA {component_id: $component_id}]->(p)
+    MERGE (c)-[:DATA {component_id: $component_id, data_id: p.parameter_id}]->(p)
     RETURN c.component_id AS component_id, p.parameter_id AS parameter_id
     """
     with driver.session() as session:
@@ -48,7 +48,7 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
     query = """
     MATCH (c:Component {component_id: $component_id}), (p: OutParameter)
     WHERE elementId(p) = $parameter_internal_id
-    MERGE (c)<-[:DATA {component_id: $component_id}]-(p)
+    MERGE (c)<-[:DATA {component_id: $component_id, data_id: p.parameter_id}]-(p)
     RETURN c.component_id AS component_id, p.parameter_id AS parameter_id
     """
     with driver.session() as session:
@@ -56,7 +56,7 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
                              parameter_internal_id=parameter_internal_id)
     
     
-def create_data_relationship_with_id(driver: Driver, from_internal_node_id: int, to_internal_node_id: int, id: str)  -> tuple[int,int]:
+def create_data_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int, component_id: str, data_id: str)  -> tuple[int,int]:
     """
     Creates a data dependency relationship in Neo4j between the two nodes with Neo4j internal IDs given as parameters.
     This relationship is an outgoing data edge from the node with internal ID from_internal_node_id
@@ -70,16 +70,16 @@ def create_data_relationship_with_id(driver: Driver, from_internal_node_id: int,
     Returns:
         tuple[int,int]: from_internal_node_id, to_internal_node_id
     """
-    clean_id = clean_component_id(id)
+    clean_id = clean_component_id(component_id)
     query = """
     MATCH (a), (b)
     WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
-    MERGE (a)-[:DATA {component_id: $component_id}]->(b)
+    MERGE (a)-[:DATA {component_id: $component_id, data_id: $data_id}]->(b)
     RETURN elementId(a) AS id_1, elementId(b) AS id_2
     """
     with driver.session() as session:
         result = session.run(query, from_internal_node_id=from_internal_node_id,
-                             to_internal_node_id=to_internal_node_id, component_id= clean_id)
+                             to_internal_node_id=to_internal_node_id, component_id= clean_id, data_id=data_id)
         record = result.single()
         return record["id_1"], record["id_2"]
     
@@ -134,26 +134,3 @@ def clean_relationship(driver: Driver)  -> tuple[int,int]:
     """
     with driver.session() as session:
         session.run(query)
-    
-    
-def simplify_data_and_control_edges(driver: Driver):
-    with driver.session() as session:
-        create_data_edges_query = """
-        MATCH (n1)-[:DATA]->(n:Data), (n)-[:DATA]->(n2)
-        WITH n, n1, n2, n.component_id AS component_id, n.data_id AS data_id
-        MERGE (n1)-[:DATA {component_id: component_id, data_id: data_id}]->(n2)
-        """
-        session.run(create_data_edges_query)
-
-        create_control_edges_query = """
-        MATCH (n1)-[:CONTROL]->(n:Data), (n)-[:DATA]->(n2)
-        WITH n, n1, n2, n.component_id AS component_id, n.data_id AS data_id
-        MERGE (n1)-[:CONTROL {component_id: component_id, data_id: data_id}]->(n2)
-        """
-        session.run(create_control_edges_query)
-        
-        delete_data_query = """
-        MATCH (n:Data)
-        DETACH DELETE n
-        """
-        session.run(delete_data_query)

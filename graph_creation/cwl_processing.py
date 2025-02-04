@@ -4,7 +4,7 @@ from neo4j import Driver
 from graph_creation.cst_processing import traverse_when_statement_extract_dependencies
 from graph_creation.utils import process_in_param, process_parameter_source
 from neo4j_queries.node_queries import ensure_component_node, ensure_git_node, ensure_in_parameter_node, ensure_out_parameter_node
-from neo4j_queries.edge_queries import create_control_relationship, create_data_relationship_with_id, create_out_param_relationship, create_references_relationship
+from neo4j_queries.edge_queries import create_control_relationship, create_data_relationship, create_out_param_relationship, create_references_relationship
 
 from neo4j_queries.utils import get_is_workflow
 from parsers.javascript_parsing import parse_javascript_expression_string, parse_javascript_string
@@ -140,7 +140,7 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
             param_node_internal_id = param_node[0]
             if is_tool:
                 # Create a data edge from the step component node to the in-parameter node
-                create_data_relationship_with_id(driver, s_node_internal_id, param_node_internal_id, step_path)
+                create_data_relationship(driver, s_node_internal_id, param_node_internal_id, step_path, input['id'])
 
             # Inputs can have one or multiple data sources (data nodes)
             if 'source' in input:
@@ -182,7 +182,7 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
             param_node_internal_id = param_node[0]
             if is_tool:
                 # Create a data edge from out-parameter node to the step component node
-                create_data_relationship_with_id(driver, param_node_internal_id, s_node_internal_id, step_path)
+                create_data_relationship(driver, param_node_internal_id, s_node_internal_id, step_path, output_id)
 
 
 def process_cwl_base_commands(driver, entity, links):

@@ -45,6 +45,8 @@ if __name__ == '__main__':
         driver.verify_connectivity()
         print("Connection established.")
         driver = GraphDatabase.driver(URI, auth=AUTH)
-        process_repos(repo_paths, driver)
+        # with driver.session() as session:
+        #     session.run("MATCH ()-[r:DATA]-() DELETE r")
+        process_repos(repo_paths, driver, build=False, calculate=True)
         driver.close()
 

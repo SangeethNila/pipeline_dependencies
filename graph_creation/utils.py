@@ -1,7 +1,7 @@
 from pathlib import Path
 from neo4j import Driver
 from neo4j_queries.node_queries import ensure_in_parameter_node, ensure_out_parameter_node
-from neo4j_queries.edge_queries import create_data_relationship_with_id, create_in_param_relationship
+from neo4j_queries.edge_queries import create_data_relationship, create_in_param_relationship
 
 GITLAB_ASTRON ='https://git.astron.nl'
 
@@ -72,7 +72,7 @@ def process_parameter_source(driver: Driver, param_node_internal_id: int, source
         # Ensure the source exists in the output parameter node for the subcomponent
         source_param_node = ensure_out_parameter_node(driver, source_parsed[1], sub_component_id)[0]
     # Create a relationship between the parameter node and its source
-    create_data_relationship_with_id(driver, param_node_internal_id, source_param_node, component_id)
+    create_data_relationship(driver, param_node_internal_id, source_param_node, component_id, source_id)
 
 def resolve_relative_path(path: Path)-> Path:
     """
