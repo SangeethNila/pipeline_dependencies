@@ -1,4 +1,5 @@
 from neo4j import Driver 
+from metric_calculations.CalculationComponentAnalyzer import CalculationComponentAnalyzer
 from metric_calculations.Neo4jTraversalDFS import Neo4jTraversalDFS
 from graph_creation.cwl_parsing import get_cwl_from_repo
 from graph_creation.docker_parsing import parse_all_dockerfiles
@@ -55,8 +56,12 @@ def process_repos(repo_list: list[str], driver: Driver, build = True, calculate 
                     process_cwl_commandline(driver, entity, links)
         if calculate:
             neo4j_traversal = Neo4jTraversalDFS(driver)
+            analyzer = CalculationComponentAnalyzer(driver)
             for entity in all_entities:
                 print(f'Processing: {entity["path"]}')
-                is_workflow = get_is_workflow(entity)
-                if is_workflow:
-                    neo4j_traversal.traverse_subgraph(entity['path'])
+                # is_workflow = get_is_workflow(entity)
+                # if is_workflow:
+                #     neo4j_traversal.traverse_subgraph(entity['path'])
+                data = analyzer.fetch_calculation_component_fan_data()
+                # Save to CSV
+                analyzer.save_to_csv(data)
