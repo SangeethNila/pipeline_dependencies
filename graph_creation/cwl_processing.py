@@ -25,17 +25,16 @@ def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
         None
     """
     component_id = cwl_entity['path']
-    is_workflow = get_is_workflow(cwl_entity)
     # Process the inputs based on their type (list or dictionary)
     if isinstance(cwl_entity['inputs'], list):
         # If 'inputs' is a list, iterate over each input (which is expected to be a dictionary)
         for input in cwl_entity['inputs']:
             if isinstance(input, dict):
-                process_in_param(driver, input['id'], component_id, is_workflow, input['type'])
+                process_in_param(driver, input['id'], component_id, input['type'], cwl_entity['class'])
     elif isinstance(cwl_entity['inputs'], dict):
         # If 'inputs' is a dictionary, iterate over the keys (which are the input IDs)
         for key in cwl_entity['inputs'].keys():
-            process_in_param(driver, key, component_id, is_workflow)
+            process_in_param(driver, key, component_id, None, cwl_entity['class'])
 
 # TODO: deal with outputBindings
 def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup) -> None:
@@ -69,7 +68,7 @@ def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup) -> None:
         if isinstance(output, dict):
             # Create out-parameter node with the parameter ID as defined in the component
             # and component ID equal to the path of the componet
-            out_param_node = ensure_out_parameter_node(driver, output['id'], component_id, output["type"])
+            out_param_node = ensure_out_parameter_node(driver, output['id'], component_id, output["type"], cwl_entity['class'])
             out_param_node_internal_id = out_param_node[0]
 
             # If it's not a workflow, create a relationship between the component and the output parameter
@@ -134,7 +133,6 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
 
         # Process the list of inputs of the step 
         for input in step['in']:
-            process_in_param(driver, input['id'], step_path, not is_tool)
             # Create in-parameter node with ID as defined in the component and component ID equal to the path of the step
             param_node = ensure_in_parameter_node(driver, input['id'], step_path)
             param_node_internal_id = param_node[0]

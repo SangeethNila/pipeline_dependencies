@@ -36,7 +36,7 @@ def ensure_git_node(driver: Driver, git_url: str) -> tuple[int,str]:
         record = result.single()
         return record["node_internal_id"], record["git_url"]
 
-def ensure_in_parameter_node(driver: Driver, node_id: str, prefixed_component_id: str, param_type: str = None) \
+def ensure_in_parameter_node(driver: Driver, node_id: str, prefixed_component_id: str, param_type: str = None, entity_type: str = None) \
         -> tuple[int,str,str,str]: 
     """
     Ensures that there exists an  in-parameter node with ID node_id
@@ -57,6 +57,7 @@ def ensure_in_parameter_node(driver: Driver, node_id: str, prefixed_component_id
     query_type = """
     MERGE (n:InParameter {parameter_id: $node_id, component_id: $component_id})
     SET n.type = $type
+    SET n.entity_type = $entity_type
     RETURN elementId(n) AS node_internal_id, n.parameter_id AS id_property, n.component_id AS component_id_property
     """
     query_check = """
@@ -64,7 +65,7 @@ def ensure_in_parameter_node(driver: Driver, node_id: str, prefixed_component_id
     RETURN elementId(n) AS node_internal_id, n.parameter_id AS id_property, n.component_id AS component_id_property
     """
     with driver.session() as session:
-        if param_type:
+        if param_type and entity_type:
             query = query_type
         else:
             query = query_check
@@ -74,11 +75,11 @@ def ensure_in_parameter_node(driver: Driver, node_id: str, prefixed_component_id
         elif isinstance(param_type, list):
             new_list = [str(type) for type in param_type]
             new_param_type = " OR ".join(new_list)
-        result = session.run(query, node_id=node_id, component_id=component_id, type=new_param_type)
+        result = session.run(query, node_id=node_id, component_id=component_id, type=new_param_type, entity_type=entity_type)
         record = result.single()
         return record["node_internal_id"], record["id_property"], record["component_id_property"]
     
-def ensure_out_parameter_node(driver: Driver, node_id: str, prefixed_component_id: str, param_type: str = None) \
+def ensure_out_parameter_node(driver: Driver, node_id: str, prefixed_component_id: str, param_type: str = None, entity_type: str = None) \
         -> tuple[int,str,str,str]: 
     """
     Ensures that there exists an out-parameter node with ID node_id
@@ -99,6 +100,7 @@ def ensure_out_parameter_node(driver: Driver, node_id: str, prefixed_component_i
     query_type = """
     MERGE (n:OutParameter {parameter_id: $node_id, component_id: $component_id})
     SET n.type = $type
+    SET n.entity_type = $entity_type
     RETURN elementId(n) AS node_internal_id, n.parameter_id AS id_property, n.component_id AS component_id_property
     """
     query_check = """
@@ -107,7 +109,7 @@ def ensure_out_parameter_node(driver: Driver, node_id: str, prefixed_component_i
     """
 
 
-    if param_type:
+    if param_type and entity_type:
         query = query_type
     else:
         query = query_check
@@ -119,7 +121,7 @@ def ensure_out_parameter_node(driver: Driver, node_id: str, prefixed_component_i
         elif isinstance(param_type, list):
             new_list = [str(type) for type in param_type]
             new_param_type = " OR ".join(new_list)
-        result = session.run(query, node_id=node_id, component_id=component_id, type=new_param_type)
+        result = session.run(query, node_id=node_id, component_id=component_id, type=new_param_type, entity_type=entity_type)
         record = result.single()
         return record["node_internal_id"], record["id_property"], record["component_id_property"]
     

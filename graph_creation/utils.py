@@ -27,7 +27,7 @@ def process_step_lookup(cwl_entity: dict) -> dict:
         step_lookup[step['id']] = step_path
     return step_lookup
 
-def process_in_param(driver: Driver, param_id: str, component_id: str, is_workflow: bool, type: str = None):
+def process_in_param(driver: Driver, param_id: str, component_id: str, param_type: str = None, entity_type: str = None):
     """
     Processes an input parameter by ensuring its node exists and optionally creating a relationship 
     between the component and the parameter node.
@@ -41,8 +41,10 @@ def process_in_param(driver: Driver, param_id: str, component_id: str, is_workfl
     Returns:
         None
     """
-    param_node = ensure_in_parameter_node(driver, param_id, component_id, type)
-    if not is_workflow:
+    is_workflow = entity_type == "Workflow"
+
+    param_node = ensure_in_parameter_node(driver, param_id, component_id, param_type, entity_type)
+    if entity_type == "Workflow":
         create_in_param_relationship(driver, component_id, param_node[0])
 
 def process_parameter_source(driver: Driver, param_node_internal_id: int, source_id: str, component_id: str, step_lookup: dict) -> None:
