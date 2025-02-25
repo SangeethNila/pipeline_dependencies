@@ -109,7 +109,7 @@ class Neo4jTraversalDFS:
         
     def update_edge(self, session, edge_id, workflow_id):
         query = """MATCH ()-[r]->()
-            WHERE id(r) = $edge_id
+            WHERE elementId(r) = $edge_id
             SET r.workflow_list = 
                 CASE 
                     WHEN r.workflow_list IS NULL THEN [$workflow_id]
@@ -119,32 +119,48 @@ class Neo4jTraversalDFS:
             RETURN r.workflow_list"""
         session.run(query, edge_id=edge_id, workflow_id=workflow_id)
 
-    def traverse_subgraph(self, component_id, entity_type, calculation = True, visualization = False):
+    def get_all_workflow_ids(self, session):
+        query = """MATCH (n:OutParameter)  
+            WHERE n.entity_type="Workflow"
+            RETURN COLLECT(DISTINCT n.component_id) AS component_ids
+            """
+        result = session.run(query)
+        return result.single()["component_ids"]  # Extract the list
+
+    def preprocess_all_graphs(self):
+        with self.driver.session() as session:
+            workflow_ids = self.get_all_workflow_ids(session)
+            visited_workflows = set()
+            for workflow in workflow_ids:
+                visited_workflows.union(self.traverse_subgraph(session, workflow, calculation=False))
+
+    def traverse_subgraph(self, session, component_id, calculation = True):
         """Performs DFS traversal and stores the resulting subgraph in Neo4j."""
         start_component_id = clean_component_id(component_id)
         
-        with self.driver.session() as session:
-            # Find all starting nodes with the given component_id
-            query = """
-            MATCH (n:OutParameter {component_id: $component_id})
-            RETURN elementId(n) AS nodeId
-            """
-            start_nodes = [record["nodeId"] for record in session.run(query, component_id=start_component_id)]
+        # Find all starting nodes with the given component_id
+        query = """
+        MATCH (n:OutParameter {component_id: $component_id})
+        RETURN elementId(n) AS nodeId, n.entity_type AS entityType
+        """
+        result = session.run(query, component_id=start_component_id)
+        start_nodes = [record["nodeId"] for record in result]
+        entity_type = [record["entityType"] for record in result]
 
-            allowed_component_ids = {start_component_id}  # Set of allowed component_ids
-            visited_nodes = {} # Track visited nodes to avoid cycles
-            visited_edges = set()  # Track visited relationships
+        allowed_component_ids = {start_component_id}  # Set of allowed component_ids
+        visited_nodes = {} # Track visited nodes to avoid cycles
+        visited_edges = set()  # Track visited relationships
 
-            if calculation:
-                # Create CalculationComponent node for this component_id if not already created
-                self._create_calculation_component_2(session, start_component_id, entity_type)
+        if calculation:
+            # Create CalculationComponent node for this component_id if not already created
+            self._create_calculation_component_2(session, start_component_id, entity_type)
 
-            for node_id in start_nodes:
-                self._dfs_traverse(session, start_component_id, node_id, allowed_component_ids, visited_nodes, visited_edges, calculation, visualization)
-                
-            return allowed_component_ids
+        for node_id in start_nodes:
+            self._dfs_traverse(session, start_component_id, node_id, allowed_component_ids, visited_nodes, visited_edges, calculation)
+            
+        return allowed_component_ids
 
-    def _dfs_traverse(self, session, workflow_id, node_id, allowed_component_ids, visited_nodes, visited_edges, calculation, visualization):
+    def _dfs_traverse(self, session, workflow_id, node_id, allowed_component_ids, visited_nodes, visited_edges, calculation):
         """Recursively performs DFS traversal and saves the subgraph."""
         if node_id in visited_nodes:
             if allowed_component_ids == visited_nodes[node_id]:
@@ -181,25 +197,15 @@ class Neo4jTraversalDFS:
             rel_id = record["relId"]
             next_component_id = record["nextComponentId"]
             node_labels = record["nodeLabels"]
-            rel_type = record["relType"]
             rel_component_id = record["relComponentId"]
             next_entity_type = record["nextEntityType"]
             data_id = record["dataId"]
 
             self.update_edge(session, rel_id, workflow_id)
 
-            if visualization:
-                session.run("""
-                        MATCH (n)-[r]->(m)
-                        WHERE elementId(n) = $node_id AND elementId(m) = $next_node_id
-                        MERGE (n)-[:SUBGRAPH {original_type: $rel_type}]->(m)
-                    """, node_id=node_id, next_node_id=next_node_id, rel_type=rel_type)
-
             # Save the relationship if not already visited
             visited_edges.add(rel_id)
 
-
-    
             # If an OutParameter node has a new component_id, expand allowed list
             if "OutParameter" in node_labels and next_component_id not in allowed_component_ids:
                 allowed_component_ids.add(next_component_id)
@@ -218,28 +224,4 @@ class Neo4jTraversalDFS:
                     self._create_indirect_local_flow_2(session, next_component_id, component_id, workflow_id, data_id)
 
             # Recursively continue DFS
-            self._dfs_traverse(session, workflow_id, next_node_id, allowed_component_ids, visited_nodes, visited_edges, calculation, visualization)
-
-    def clean_up_subgraph(self):
-        with self.driver.session() as session:
-            session.run("""
-                MATCH ()-[r:SUBGRAPH]-()
-                DELETE r
-            """)
-
-
-# if __name__ == "__main__":
-#     # Get the authentication details for Neo4j instance
-#     load_status = dotenv.load_dotenv("Neo4j-25ebc0db-Created-2024-11-17.txt")
-#     if load_status is False:
-#         raise RuntimeError('Environment variables not loaded.')
-#     URI = os.getenv("NEO4J_URI")
-#     AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
-#     neo4j_traversal = Neo4jTraversalDFS(URI, AUTH)
-
-#     try:
-#         start_component_id = "ldv\imaging_compress_pipeline\download_and_compress_pipeline.cwl"  # Start DFS from component_id 'x'
-#         neo4j_traversal.clean_up_flow()
-#         neo4j_traversal.traverse_subgraph(start_component_id)
-#     finally:
-#         neo4j_traversal.close()
+            self._dfs_traverse(session, workflow_id, next_node_id, allowed_component_ids, visited_nodes, visited_edges, calculation)
