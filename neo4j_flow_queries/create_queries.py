@@ -14,7 +14,7 @@ def create_calculation_component_node(session: Session, component_id: str, entit
     session.run(query, component_id=component_id, nice_id=nice_id, entity_type=entity_type)
 
 def create_direct_flow(session: Session, from_component_id: str, to_component_id: str, 
-                             workflow_id: str, data_id: str):
+                             workflow_id: str, data_ids: str, workflow_list: list):
     """
     Creates a DIRECT_FLOW relationship between two CalculationComponent nodes.
     A -(DIRECT_FLOW)-> B if A calls B
@@ -24,13 +24,16 @@ def create_direct_flow(session: Session, from_component_id: str, to_component_id
     query = """
     MATCH (cc_from:CalculationComponent {component_id: $from_component_id})
     MATCH (cc_to:CalculationComponent {component_id: $to_component_id})
-    MERGE (cc_from)-[:DIRECT_FLOW {workflow_id: $workflow_id, description: $description, data_id: $data_id}]->(cc_to)
+    MERGE (cc_from)-[r:DIRECT_FLOW 
+        {workflow_id: $workflow_id, description: $description, workflow_list:apoc.coll.sort($workflow_list)}]->(cc_to)
+    ON MATCH SET r.data_ids = apoc.coll.toSet(r.data_ids + $data_ids)
+    ON CREATE SET r.data_ids = $data_ids
     """
     session.run(query, from_component_id=from_component_id, to_component_id=to_component_id, workflow_id=workflow_id,
-                description=description, data_id=data_id)
+                description=description, data_ids=data_ids, workflow_list=workflow_list)
         
 def create_indirect_flow(session: Session, from_component_id: str, to_component_id: str, 
-                               workflow_id: str, data_id: str):
+                               workflow_id: str, data_ids: str, workflow_list: list):
     """
     Creates an INDIRECT_FLOW relationship between two CalculationComponent nodes.
     A -(INDIRECT_FLOW)-> B
@@ -41,13 +44,16 @@ def create_indirect_flow(session: Session, from_component_id: str, to_component_
     query = """
     MATCH (cc_from:CalculationComponent {component_id: $from_component_id})
     MATCH (cc_to:CalculationComponent {component_id: $to_component_id})
-    MERGE (cc_from)-[:INDIRECT_FLOW {workflow_id: $workflow_id, description: $description, data_ids: $data_ids}]->(cc_to)
+    MERGE (cc_from)-[r:INDIRECT_FLOW 
+        {workflow_id: $workflow_id, description: $description, workflow_list:apoc.coll.sort($workflow_list)}]->(cc_to)
+    ON MATCH SET r.data_ids = apoc.coll.toSet(r.data_ids + $data_ids)
+    ON CREATE SET r.data_ids = $data_ids
     """
     session.run(query, from_component_id=from_component_id, to_component_id=to_component_id, workflow_id=workflow_id,
-                    description=description, data_id=data_id)
+                    description=description, data_ids=data_ids, workflow_list=workflow_list)
     
 def create_sequential_indirect_flow(session: Session, from_component_id: str, to_component_id: str, 
-                                          workflow_id: str, data_id: str):
+                                          workflow_id: str, data_ids: str, workflow_list: list):
     """
     Creates an SEQUENTIAL_INDIRECT_FLOW relationship between two CalculationComponent nodes.
     A -(SEQUENTIAL_INDIRECT_FLOW)-> B
@@ -58,7 +64,10 @@ def create_sequential_indirect_flow(session: Session, from_component_id: str, to
     query = """
     MATCH (cc_from:CalculationComponent {component_id: $from_component_id})
     MATCH (cc_to:CalculationComponent {component_id: $to_component_id})
-    MERGE (cc_from)-[:SEQUENTIAL_INDIRECT_FLOW {workflow_id: $workflow_id, description: $description, data_id: $data_id}]->(cc_to)
+    MERGE (cc_from)-[r:SEQUENTIAL_INDIRECT_FLOW 
+        {workflow_id: $workflow_id, description: $description, workflow_list:apoc.coll.sort($workflow_list)}]->(cc_to)
+    ON MATCH SET r.data_ids = apoc.coll.toSet(r.data_ids + $data_ids)
+    ON CREATE SET r.data_ids = $data_ids
     """
     session.run(query, from_component_id=from_component_id, to_component_id=to_component_id, workflow_id=workflow_id,
-                description=description, data_id=data_id)
+                description=description, data_ids=data_ids, workflow_list=workflow_list)

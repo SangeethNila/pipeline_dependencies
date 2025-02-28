@@ -1,7 +1,7 @@
 from neo4j import Session
 
 
-def get_component_id_labels_of_node(session: Session, node_id):
+def get_node_details(session: Session, node_id):
     query = """
     MATCH (n) WHERE elementId(n) = $node_id
     RETURN n.component_id AS component_id, labels(n) AS nodeLabels, n.entity_type AS entityType,
@@ -16,9 +16,19 @@ def get_component_id_labels_of_node(session: Session, node_id):
 
     return component_id, node_labels, entity_type, workflow_list
 
+def get_nodes_with_control_edges(session: Session):
+    query = """
+    MATCH (m)-[r]->(n)
+    WHERE type(r) = 'CONTROL'
+    RETURN elementId(m) AS sourceId, elementId(n) AS targetId, r.component_id AS componentId, elementId(r) AS edgeId
+    """
+    result = session.run(query)
+
+    return result
+
 def get_valid_connections(session: Session, node_id, allowed_component_ids):
     query = """
-    MATCH (n)-[r]->(m)
+    MATCH (n)-[r: DATA]->(m)
     WHERE elementId(n) = $node_id AND r.component_id IN $allowed_component_ids
     RETURN elementId(m) AS nextNodeId, elementId(r) AS relId, m.component_id AS nextComponentId, 
         labels(m) AS nodeLabels, type(r) AS relType, r.component_id AS relComponentId,
@@ -28,6 +38,20 @@ def get_valid_connections(session: Session, node_id, allowed_component_ids):
         CASE WHEN r.workflow_list IS NOT NULL THEN r.workflow_list ELSE null END AS workflowList
     """
     results = session.run(query, node_id=node_id, allowed_component_ids=list(allowed_component_ids))
+    return results
+
+def get_all_outgoing_edges(session: Session, node_id):
+    query = """
+    MATCH (n)-[r]->(m)
+    WHERE elementId(n) = $node_id 
+    RETURN elementId(m) AS nextNodeId, elementId(r) AS relId, m.component_id AS nextComponentId, 
+        labels(m) AS nextNodeLabels, type(r) AS relType, r.component_id AS relComponentId,
+        r.data_ids AS dataIds,
+        CASE WHEN n.entity_type IS NOT NULL THEN n.entity_type ELSE null END AS entityType,
+        CASE WHEN m.entity_type IS NOT NULL THEN m.entity_type ELSE null END AS nextEntityType,
+        CASE WHEN r.workflow_list IS NOT NULL THEN r.workflow_list ELSE null END AS workflowList
+    """
+    results = session.run(query, node_id=node_id)
     return results
 
 
@@ -41,6 +65,14 @@ def update_workflow_list_of_edge(session: Session, edge_id: str, workflow_ids: l
             END
         RETURN r.workflow_list"""
     session.run(query, edge_id=edge_id, workflow_ids=workflow_ids)
+
+def get_workflow_list_of_data_edge(session: Session, source_id: str, target_id:str, edge_component_id: str):
+    query = """MATCH (m)-[r:DATA]->(n)
+        WHERE elementId(m) = $source_id AND elementId(n) = $target_id AND r.component_id = $component_id
+        RETURN r.workflow_list AS workflow_list"""
+    result = session.run(query, source_id=source_id, target_id=target_id, component_id=edge_component_id)
+    return result.single()["workflow_list"]
+
 
 def update_workflow_list_of_node(session: Session, node_id: str, workflow_ids: list):
     query = """MATCH (m)-[]->()
@@ -79,4 +111,13 @@ def get_all_out_parameter_nodes_of_entity(session: Session, component_id: str):
             RETURN elementId(n) AS nodeId, n.entity_type AS entityType
             """
     result = session.run(query, component_id=component_id)
+    return result
+
+def get_all_outer_out_parameter_nodes(session: Session):
+    query = """
+            MATCH (n:OutParameter)
+            WHERE NOT ()-[]->(n)
+            RETURN elementId(n) AS nodeId
+            """
+    result = session.run(query)
     return result
