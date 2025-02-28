@@ -1,6 +1,6 @@
 from neo4j import Driver, GraphDatabase, Session
 
-from neo4j_dependency_queries.processing_queries import get_all_outermost_workflow_ids, get_component_id_labels_of_node, get_valid_connections, update_workflow_list_of_edge
+from neo4j_dependency_queries.processing_queries import get_all_out_parameter_nodes_of_entity, get_all_outermost_workflow_ids, get_component_id_labels_of_node, get_valid_connections, update_workflow_list_of_edge, update_workflow_list_of_node
 from neo4j_dependency_queries.utils import clean_component_id
 from neo4j_flow_queries.create_queries import create_calculation_component_node, create_direct_flow, create_indirect_flow, create_sequential_indirect_flow
 from neo4j_dependency_queries.processing_queries import get_all_workflow_ids
@@ -42,83 +42,94 @@ class DependencyTraversalDFS:
                              then calculate the flows by calling the function 'create_flow_graph'.""")
         
         # Find all starting nodes with the given component_id
-        query = """
-        MATCH (n:OutParameter {component_id: $component_id})
-        RETURN elementId(n) AS nodeId, n.entity_type AS entityType
-        """
-        result = session.run(query, component_id=start_component_id)
+        result = get_all_out_parameter_nodes_of_entity(session, start_component_id)
         start_nodes = [record["nodeId"] for record in result]
         entity_type = [record["entityType"] for record in result]
 
-        allowed_component_ids = {start_component_id}  # Set of allowed component_ids
+    
         called_entities = {start_component_id}  # Set of allowed component_ids
-        visited_nodes = {} # Track visited nodes to avoid cycles
-        visited_edges = set()  # Track visited relationships
+    
 
         if flow_graph_creation:
             # Create CalculationComponent node for this component_id if not already created
             create_calculation_component_node(session, start_component_id, entity_type)
 
         for node_id in start_nodes:
-            self._dfs_traverse(session, start_component_id, node_id, allowed_component_ids, called_entities, visited_nodes, visited_edges, preprocessing, flow_graph_creation)
+            allowed_component_ids = {start_component_id}  # Set of allowed component_ids
+            workflow_set = {start_component_id}
+            visited_nodes = {} # Track visited nodes to avoid cycles
+            self._dfs_traverse(session, start_component_id, node_id, allowed_component_ids, called_entities, visited_nodes, preprocessing, flow_graph_creation, workflow_set)
             
-        print(called_entities)
         return called_entities
 
     def _dfs_traverse(self, session: Session, workflow_id: str, node_id: int, allowed_component_ids: set, called_entities: set,
-                      visited_nodes: dict, visited_edges: set, preprocess: bool, flow_graph_creation: bool):
+                      visited_nodes:  dict[str, set], preprocess: bool, flow_graph_creation: bool, workflow_set: set = set()):
         """Recursively performs DFS traversal and saves the subgraph."""
-        if node_id in visited_nodes:
-            if allowed_component_ids == visited_nodes[node_id]:
-                return  # Stop if already visited with same list of allowed components
 
-        visited_nodes[node_id] = allowed_component_ids # Mark node as visited
-        print(f"Visited Node ID: {node_id}")
+        component_id, current_node_labels, entity_type, workflow_list = get_component_id_labels_of_node(session, node_id)
 
-        if flow_graph_creation:
-            component_id, starting_node_labels = get_component_id_labels_of_node(session, node_id)
+        # If an OutParameter node has a new component_id, expand allowed list
+        if "OutParameter" in current_node_labels and component_id not in allowed_component_ids:
+
+            allowed_component_ids.add(component_id)
+            if entity_type == "Workflow":
+                workflow_set.add(component_id)
+            called_entities.add(component_id)
+
+            print(f"New component_id added in the path: {component_id}")
+
+        if workflow_list:
+            if workflow_set.issubset(workflow_list):
+                return
+        update_workflow_list_of_node(session, node_id, list(workflow_set.copy()))
+
+        
+
+        if "InParameter" in current_node_labels and component_id  not in allowed_component_ids:
+            raise ValueError()
+        
+        if "InParameter" in current_node_labels and component_id in allowed_component_ids:
+            allowed_component_ids.remove(component_id)
+            if component_id in workflow_set:
+                workflow_set.remove(component_id)
+
+        # print(f"Visited Node ID: {node_id}")
 
         # Find valid connections
         results = get_valid_connections(session, node_id, allowed_component_ids)
 
-        for record in results:
-            next_node_id = record["nextNodeId"]
+        for record in results:            
             edge_id = record["relId"]
-            next_component_id = record["nextComponentId"]
-            node_labels = record["nodeLabels"]
             rel_component_id = record["relComponentId"]
-            next_entity_type = record["nextEntityType"]
             data_ids = record["dataIds"]
+
+            next_node_id = record["nextNodeId"]
+            next_component_id = record["nextComponentId"]
+            next_node_labels = record["nodeLabels"]
+            next_entity_type = record["nextEntityType"]
             workflow_list = record["workflowList"]
 
-            if flow_graph_creation and workflow_list is None:
-                raise ValueError('The dependency graph has not been preprocessed. This needs to happen before flow graph calculations.')
+            # if workflow_list != None:
+            #     if workflow_set.issubset(set(workflow_list)):
+            #         continue 
+            #     else: 
+            #         print(f"calc: {workflow_set}")
+            #         print(f"present: {workflow_set}")
 
             if preprocess:
-                update_workflow_list_of_edge(session, edge_id, list(allowed_component_ids))
-
-            # Save the relationship if not already visited
-            visited_edges.add(edge_id)
-
-            # If an OutParameter node has a new component_id, expand allowed list
-            if "OutParameter" in node_labels and next_component_id not in allowed_component_ids:
-                allowed_component_ids.add(next_component_id)
-                called_entities.add(next_component_id)
-                if flow_graph_creation:
-                    create_calculation_component_node(session, next_component_id, next_entity_type)
-                    create_direct_flow(session, workflow_id, next_component_id, workflow_id, data_ids, workflow_list)
-                    create_indirect_flow(session, next_component_id, workflow_id, workflow_id, data_ids, workflow_list)
-
-                print(f"New component_id added: {next_component_id}")
-
-            if "InParameter" in node_labels and next_component_id in allowed_component_ids:
-                allowed_component_ids.remove(next_component_id)
+                update_workflow_list_of_edge(session, edge_id, list(workflow_set.copy()))
 
             if flow_graph_creation:
-                # If the relation is B -> A where B is InParameter and A is OutParameter
-                if "InParameter" in starting_node_labels and "OutParameter" in node_labels:
-                    # Then there is a direct flow from A to B
-                    create_sequential_indirect_flow(session, next_component_id, component_id, rel_component_id, data_ids, workflow_list)
+            
+                if "OutParameter" in next_node_labels:
+                    create_calculation_component_node(session, next_component_id, next_entity_type)
+                    create_direct_flow(session, workflow_id, next_component_id, workflow_id, data_ids, workflow_set)
+                    create_indirect_flow(session, next_component_id, workflow_id, workflow_id, data_ids, workflow_set)
+
+                    # If the relation is B -> A where B is InParameter and A is OutParameter
+                    if "InParameter" in current_node_labels:
+                        # Then there is a direct flow from A to B
+                        create_sequential_indirect_flow(session, next_component_id, component_id, rel_component_id, data_ids, workflow_set)
 
             # Recursively continue DFS
-            self._dfs_traverse(session, workflow_id, next_node_id, allowed_component_ids, called_entities, visited_nodes, visited_edges, preprocess, flow_graph_creation)
+            self._dfs_traverse(session, workflow_id, next_node_id, allowed_component_ids.copy(), called_entities, visited_nodes, preprocess, flow_graph_creation, workflow_set.copy())

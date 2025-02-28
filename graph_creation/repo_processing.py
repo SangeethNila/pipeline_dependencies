@@ -7,9 +7,9 @@ from graph_creation.docker_parsing import parse_all_dockerfiles
 from graph_creation.utils import process_step_lookup
 from graph_creation.cwl_processing import process_cwl_commandline, process_cwl_inputs, process_cwl_outputs, process_cwl_steps
 from neo4j_dependency_queries.create_node_queries import ensure_component_node
-from neo4j_dependency_queries.utils import clean_component_id, get_is_workflow
+from neo4j_dependency_queries.utils import get_is_workflow
 
-def process_repos(repo_list: list[str], driver: Driver, build = True, calculate = False) -> None:
+def process_repos(repo_list: list[str], driver: Driver) -> None:
     """
     Processes a list of local repository paths containing CWL (Common Workflow Language) files,
     parsing each CWL file and creating the corresponding nodes and relationships in a Neo4j graph.
@@ -34,31 +34,20 @@ def process_repos(repo_list: list[str], driver: Driver, build = True, calculate 
         # Combine workflows and tools into one list of entities to process
         all_entities = workflows + tools
 
-        if build:
-            # links = parse_all_dockerfiles(repo)
-            for entity in all_entities:
-                print(f'Processing: {entity["path"]}')
-                is_workflow = get_is_workflow(entity)
-                steps = None
-                if not is_workflow:
-                    ensure_component_node(driver, entity['path'])
-                else:
-                    steps = process_step_lookup(entity)
-                process_cwl_inputs(driver, entity)
-                process_cwl_outputs(driver, entity, steps)
-                if steps:
-                    process_cwl_steps(driver, entity, tool_paths, steps)
-                # elif entity['class'] == 'ExpressionTool':
-                #     process_cwl_expression(driver, entity)
-                # elif entity['class'] == 'CommandLineTool':
-                #     process_cwl_commandline(driver, entity, links)
-        if calculate:
-            processed_entities = set()
-            neo4j_traversal = DependencyTraversalDFS(driver)
-            for entity in all_entities:
-                print(f'Processing: {entity["path"]}')
-                is_workflow = get_is_workflow(entity)
-                if is_workflow:
-                    if clean_component_id(entity['path']) not in processed_entities:
-                        new_entities = neo4j_traversal.traverse_subgraph(entity['path'], entity['class'])
-                        processed_entities = processed_entities.union(new_entities)
+        # links = parse_all_dockerfiles(repo)
+        for entity in all_entities:
+            print(f'Processing: {entity["path"]}')
+            is_workflow = get_is_workflow(entity)
+            steps = None
+            if not is_workflow:
+                ensure_component_node(driver, entity['path'])
+            else:
+                steps = process_step_lookup(entity)
+            process_cwl_inputs(driver, entity)
+            process_cwl_outputs(driver, entity, steps)
+            if steps:
+                process_cwl_steps(driver, entity, tool_paths, steps)
+            # elif entity['class'] == 'ExpressionTool':
+            #     process_cwl_expression(driver, entity)
+            # elif entity['class'] == 'CommandLineTool':
+            #     process_cwl_commandline(driver, entity, links)
