@@ -1,6 +1,6 @@
 import json
 from neo4j import Driver
-from neo4j_queries.utils import clean_component_id
+from neo4j_dependency_queries.utils import clean_component_id
 
 def ensure_component_node(driver: Driver, prefixed_component_id: str) -> tuple[int,str]:
     """

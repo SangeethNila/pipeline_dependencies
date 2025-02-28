@@ -1,5 +1,5 @@
 from neo4j import Driver
-from neo4j_queries.utils import clean_component_id
+from neo4j_dependency_queries.utils import clean_component_id
 
 def create_in_param_relationship(driver: Driver, prefixed_component_id: str, parameter_internal_id: int) -> tuple[str,str]:
     """
@@ -33,6 +33,7 @@ def create_in_param_relationship(driver: Driver, prefixed_component_id: str, par
     with driver.session() as session:
         result = session.run(query, component_id=component_id, 
                              parameter_internal_id=parameter_internal_id)
+    return result
     
 def create_out_param_relationship(driver: Driver, prefixed_component_id: str, parameter_internal_id: int) -> tuple[str,str]:
     """
@@ -66,6 +67,7 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
     with driver.session() as session:
         result = session.run(query, component_id=component_id, 
                              parameter_internal_id=parameter_internal_id)
+    return result
     
     
 def create_data_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int, component_id: str, data_id: str)  -> tuple[int,int]:
@@ -143,12 +145,3 @@ def create_references_relationship(driver: Driver, prefixed_component_id: int, g
                              git_internal_node_id=git_internal_node_id, reference=reference)
         record = result.single()
         return record["id_1"], record["id_2"]
-    
-def clean_relationship(driver: Driver)  -> tuple[int,int]:
-    query = """
-    MATCH ()-[r:REFERENCES]-()
-    WHERE r.reference IS NULL
-    DELETE r
-    """
-    with driver.session() as session:
-        session.run(query)

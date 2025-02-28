@@ -1,11 +1,12 @@
 import csv
 from collections import defaultdict
-import neo4j
 import pandas as pd
 from neo4j import GraphDatabase
 
-class CalculationComponentAnalyzer:
-    """Class to analyze CalculationComponent nodes and export their connectivity data to CSV."""
+from neo4j_flow_queries.processing_queries import get_all_component_ids, get_indirect_flow_connections, get_outer_workflow_ids, get_sequential_indirect_flow_connections
+
+class FlowAnalyzer:
+    """Class to analyze flows between CalculationComponent nodes and export their connectivity data to CSV."""
 
     def __init__(self, uri, user, password):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
@@ -16,37 +17,6 @@ class CalculationComponentAnalyzer:
     def close(self):
         """Closes the Neo4j database connection."""
         self.driver.close()
-
-    def fetch_calculation_component_fan_data(self):
-        """Queries Neo4j for CalculationComponent fan-in, fan-out, and fan-out set."""
-        query = """
-        MATCH (cc:CalculationComponent)
-        OPTIONAL MATCH (cc)<-[r_in]-(target_in)  // Count all incoming relationships
-        OPTIONAL MATCH (cc)-[r_out]->(target_out)  // Count all outgoing relationships & get targets
-        RETURN cc.component_id AS component_id, 
-               COUNT(DISTINCT r_in) AS fan_in, 
-               COUNT(DISTINCT r_out) AS fan_out,
-               COLLECT(DISTINCT target_in.component_id) AS fan_in_set,
-               COLLECT(DISTINCT target_out.component_id) AS fan_out_set
-        """
-        
-        with self.driver.session() as session:
-            result = session.run(query)
-            return [{"component_id": record["component_id"], 
-                     "fan_in": record["fan_in"], 
-                     "fan_out": record["fan_out"], 
-                     "fan_in_set": record["fan_in_set"],
-                     "fan_out_set": record["fan_out_set"]} 
-                    for record in result]
-        
-    def get_outer_workflow_ids(self, component_id):
-        with self.driver.session() as session:
-            query = """
-            MATCH (c:CalculationComponent2 {component_id: $component_id})-[e]-()
-            RETURN collect(distinct e.workflow_id) AS workflows
-            """
-            workflows = set(session.run(query, component_id=component_id).single()["workflows"])
-        return workflows
     
     def dfs_path_search(self, component_id_1, component_id_2, workflow_id):
         lengths = {}
@@ -59,22 +29,11 @@ class CalculationComponentAnalyzer:
 
     def dfs(self, session, current_id, path_length, multiplicity, component_id_1, component_id_2, workflow_id, lengths, bookkeeping):
         """Recursive DFS function."""
-        # Query to find outgoing connections
-        query_1 = """
-        MATCH (c1:CalculationComponent2 {component_id: $current_id})-[r {workflow_id: $workflow_id}]->(c2:CalculationComponent2)
-        RETURN c2.component_id AS next_component_id, elementId(r) AS edge_id
-        """
-
-        sequence = "Output of step (source) used as input for step (target)"
-
-        query_2 = """
-        MATCH (c1:CalculationComponent2 {component_id: $current_id})-[r {workflow_id: $workflow_id, description: $sequence}]->(c2:CalculationComponent2)
-        RETURN c2.component_id AS next_component_id, elementId(r) AS edge_id
-        """
+    
         if path_length == 0:
-            result = session.run(query_1, current_id=current_id, workflow_id=workflow_id)
+            result = get_indirect_flow_connections(session, current_id, workflow_id)
         else:
-            result = session.run(query_2, current_id=current_id, workflow_id=workflow_id, sequence=sequence)
+            result = get_sequential_indirect_flow_connections(session, current_id, workflow_id)
 
         compressed = {}
 
@@ -123,8 +82,8 @@ class CalculationComponentAnalyzer:
         path_lengths = defaultdict(int)
 
         # 1. Find common workflows
-        c1_workflows =  self.get_outer_workflow_ids(component_id_1)
-        c2_workflows = self.get_outer_workflow_ids(component_id_2)
+        c1_workflows =  get_outer_workflow_ids(component_id_1)
+        c2_workflows = get_outer_workflow_ids(component_id_2)
         common_workflows = (c1_workflows & c2_workflows)  # Intersection
 
         results = list()
@@ -148,15 +107,6 @@ class CalculationComponentAnalyzer:
             "coupling_score": coupling_score
         }
         
-    def get_all_component_ids(self):
-        """Fetches all component_ids of CalculationComponent2 nodes."""
-        query = """
-        MATCH (c:CalculationComponent2)
-        RETURN c.component_id AS component_id
-        """
-        with self.driver.session() as session:
-            result = session.run(query)
-            return [record["component_id"] for record in result]
         
     def have_same_prefix(self, s1, s2):
         parts1 = s1.split("\\")
@@ -166,7 +116,7 @@ class CalculationComponentAnalyzer:
 
     
     def complete_path_analysis(self):
-        component_ids = self.get_all_component_ids()
+        component_ids = get_all_component_ids(self.driver.session())
         matrix = pd.DataFrame(-1.0, index=component_ids, columns=component_ids)
         for component_id_1 in component_ids:
             print(f"Analyzing {component_id_1}")

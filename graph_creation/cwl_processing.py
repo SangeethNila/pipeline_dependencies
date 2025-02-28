@@ -3,14 +3,13 @@ import re
 from neo4j import Driver
 from graph_creation.cst_processing import traverse_when_statement_extract_dependencies
 from graph_creation.utils import process_in_param, process_parameter_source
-from neo4j_queries.node_queries import ensure_component_node, ensure_git_node, ensure_in_parameter_node, ensure_out_parameter_node
-from neo4j_queries.edge_queries import create_control_relationship, create_data_relationship, create_out_param_relationship, create_references_relationship
+from neo4j_dependency_queries.create_node_queries import ensure_component_node, ensure_git_node, ensure_in_parameter_node, ensure_out_parameter_node
+from neo4j_dependency_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_out_param_relationship, create_references_relationship
 
-from neo4j_queries.utils import get_is_workflow
+from neo4j_dependency_queries.utils import get_is_workflow
 from parsers.javascript_parsing import parse_javascript_expression_string, parse_javascript_string
 
 
-# TODO: deal with inputBindings
 def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
     """
     Processes the inputs of a CWL  entity, either as a list or a dictionary of inputs,
@@ -36,7 +35,6 @@ def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
         for key in cwl_entity['inputs'].keys():
             process_in_param(driver, key, component_id, None, cwl_entity['class'])
 
-# TODO: deal with outputBindings
 def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup) -> None:
     """
     Processes the output parameters of a CWL entity by creating the necessary nodes 

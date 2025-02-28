@@ -1,7 +1,7 @@
 from antlr4 import ParserRuleContext
 from neo4j import Driver
 
-from neo4j_queries.node_queries import create_ast_node
+from neo4j_dependency_queries.create_node_queries import create_ast_node
 
 def traverse_and_create(driver: Driver, component_id: str, tree, parent_node_id=None):
     # Create a Neo4j node for the current tree node

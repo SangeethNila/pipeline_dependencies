@@ -2,7 +2,7 @@ from pathlib import Path
 import ruamel.yaml
 import chardet
 
-from neo4j_queries.utils import get_is_workflow
+from neo4j_dependency_queries.utils import get_is_workflow
 
 
 def get_cwl_from_repo(repo_path: str) -> tuple[list[dict],list[dict]]:

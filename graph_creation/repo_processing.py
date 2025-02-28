@@ -1,14 +1,13 @@
 from neo4j import Driver 
 from process_history.process_history import get_cwl_change_history
-from metric_calculations.CalculationComponentAnalyzer import CalculationComponentAnalyzer
-from metric_calculations.Neo4jTraversalDFS import Neo4jTraversalDFS
+from metric_calculations.FlowAnalyzer import FlowAnalyzer
+from metric_calculations.DependencyTraversalDFS import DependencyTraversalDFS
 from graph_creation.cwl_parsing import get_cwl_from_repo
 from graph_creation.docker_parsing import parse_all_dockerfiles
 from graph_creation.utils import process_step_lookup
 from graph_creation.cwl_processing import process_cwl_commandline, process_cwl_inputs, process_cwl_outputs, process_cwl_steps
-from neo4j_queries.edge_queries import clean_relationship
-from neo4j_queries.node_queries import ensure_component_node
-from neo4j_queries.utils import clean_component_id, get_is_workflow
+from neo4j_dependency_queries.create_node_queries import ensure_component_node
+from neo4j_dependency_queries.utils import clean_component_id, get_is_workflow
 
 def process_repos(repo_list: list[str], driver: Driver, build = True, calculate = False) -> None:
     """
@@ -37,8 +36,6 @@ def process_repos(repo_list: list[str], driver: Driver, build = True, calculate 
 
         if build:
             # links = parse_all_dockerfiles(repo)
-            clean_relationship(driver)
-
             for entity in all_entities:
                 print(f'Processing: {entity["path"]}')
                 is_workflow = get_is_workflow(entity)
@@ -57,7 +54,7 @@ def process_repos(repo_list: list[str], driver: Driver, build = True, calculate 
                 #     process_cwl_commandline(driver, entity, links)
         if calculate:
             processed_entities = set()
-            neo4j_traversal = Neo4jTraversalDFS(driver)
+            neo4j_traversal = DependencyTraversalDFS(driver)
             for entity in all_entities:
                 print(f'Processing: {entity["path"]}')
                 is_workflow = get_is_workflow(entity)
