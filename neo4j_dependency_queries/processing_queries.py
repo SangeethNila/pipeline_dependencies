@@ -1,5 +1,7 @@
 from neo4j import Session
 
+from neo4j_dependency_queries.utils import clean_component_id
+
 
 def get_node_details(session: Session, node_id):
     query = """
@@ -111,6 +113,15 @@ def get_all_out_parameter_nodes_of_entity(session: Session, component_id: str):
             RETURN elementId(n) AS nodeId, n.entity_type AS entityType
             """
     result = session.run(query, component_id=component_id)
+    return result
+
+def get_all_in_parameter_nodes_of_entity(session: Session, component_id: str):
+    clean_id = clean_component_id(component_id)
+    query = """
+            MATCH (n:InParameter {component_id: $component_id})
+            RETURN elementId(n) AS nodeId, n.entity_type AS entityType
+            """
+    result = session.run(query, component_id=clean_id)
     return result
 
 def get_all_outer_out_parameter_nodes(session: Session):

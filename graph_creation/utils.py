@@ -3,7 +3,8 @@ from neo4j import Driver
 import re
 from graph_creation.cwl_parsing import get_cwl_from_repo
 from neo4j_dependency_queries.create_node_queries import ensure_in_parameter_node, ensure_out_parameter_node
-from neo4j_dependency_queries.create_edge_queries import create_data_relationship, create_in_param_relationship
+from neo4j_dependency_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_in_param_relationship
+from neo4j_dependency_queries.processing_queries import get_all_in_parameter_nodes_of_entity
 
 GITLAB_ASTRON ='https://git.astron.nl'
 
@@ -48,7 +49,7 @@ def process_in_param(driver: Driver, param_id: str, component_id: str, param_typ
     if entity_type == "Workflow":
         create_in_param_relationship(driver, component_id, param_node[0])
 
-def process_parameter_source(driver: Driver, param_node_internal_id: int, source_id: str, component_id: str, step_lookup: dict) -> None:
+def process_parameter_source(driver: Driver, param_node_internal_id: int, source_id: str, workflow_id: str, step_lookup: dict) -> None:
     """
     Processes a parameter source by creating a data relationship between a parameter node and its source.
 
@@ -57,25 +58,71 @@ def process_parameter_source(driver: Driver, param_node_internal_id: int, source
         param_node_internal_id (int): The internal ID of the parameter node to which the relationship is being created
         source_id (str): The source identifier, which can be a single identifier (in case the source is an in-param of the workflow)
             or include a subcomponent (e.g., "source" or "sub_component/source")
-        component_id (str): The ID of the component owning the parameter node
-        step_lookup (dict): A mapping of subcomponent identifiers to their respective IDs within the workflow that calls them
+        workflow_id (str): The ID of workflow to which the data relationships belong
+        step_lookup (dict): A mapping of subcomponent identifiers to their respective unique paths within the workflow
 
     Returns:
         None
     """
+    source_param_node = get_source_node(driver, source_id, workflow_id, step_lookup)
+
+    # Create a relationship between the parameter node and its source
+    create_data_relationship(driver, param_node_internal_id, source_param_node, workflow_id, source_id)
+
+
+def get_source_node(driver: Driver, source_id: str, workflow_id: str, step_lookup: dict) -> None:
+    """
+    Retrieves the node corresponding to the given source identifier.
+
+    Parameters:
+        driver (Driver): The Neo4j driver used to execute queries.
+        source_id (str): The source identifier, which can be a single identifier (if the source is an in-param of the workflow component)
+            or include a subcomponent (e.g., "source" or "sub_component/source").
+            The second option can only be the case if the component is a workflow
+        workflow_id (str): The ID of the workflow owning the data source.
+        step_lookup (dict): A mapping of subcomponent identifiers to their respective unique paths within the workflow that is being analyzed.
+
+    Returns:
+        The internal ID of the source parameter node.
+    """
     # Parse the source_id to identify whether it refers to a workflow parameter or an output of a subcomponent (subcomponent/id)
     source_parsed = source_id.split("/")
+    source_param_node = None
     if len(source_parsed) == 1:
         # Ensure the source exists in the parameter node and retrieve it
-        source_param_node = ensure_in_parameter_node(driver, source_parsed[0], component_id)[0]
+        source_param_node = ensure_in_parameter_node(driver, source_parsed[0], workflow_id)[0]
+
     else:
-        # If source_id refers to an output subcomponent/sourc
+        # If source_id refers to an output subcomponent/source
         # Retrieve the subcomponent ID from the step_lookup dictionary
         sub_component_id = step_lookup[source_parsed[0]]
         # Ensure the source exists in the output parameter node for the subcomponent
         source_param_node = ensure_out_parameter_node(driver, source_parsed[1], sub_component_id)[0]
-    # Create a relationship between the parameter node and its source
-    create_data_relationship(driver, param_node_internal_id, source_param_node, component_id, source_id)
+    return source_param_node
+
+def process_control_dependencies(driver: Driver, source_id: str, workflow_id: str, component_id: str, step_lookup: dict):
+    """
+    Processes control dependencies by creating control relationships between the given source and
+    all in-parameters of the specified component.
+
+    Parameters:
+        driver (Driver): The Neo4j driver used to execute queries.
+        source_id (str): The source identifier, which can be a single identifier or a subcomponent reference.
+        workflow_id (str): The ID of the workflow to which the dependencies belong.
+        component_id (str): The ID of the component owning the in-parameters.
+        step_lookup (dict): A mapping of subcomponent identifiers to their respective unique paths within the workflow.
+
+    Returns:
+        None
+    """
+    source_param_node = get_source_node(driver, source_id, workflow_id, step_lookup)
+    with driver.session() as session:
+        in_parameters = get_all_in_parameter_nodes_of_entity(session, component_id)
+        node_ids = [record["nodeId"] for record in in_parameters]
+        print(node_ids)
+        for node_id in node_ids:
+            create_control_relationship(driver, node_id, source_param_node, workflow_id, source_id)
+        
 
 def resolve_relative_path(path: Path)-> Path:
     """
@@ -127,3 +174,9 @@ def extract_js_expression_dependencies(js_expression: str) -> list[tuple[str, st
     ref_list.extend([("step_output", f"{step}/{output}") for step, output in step_output_matches])
 
     return ref_list
+
+def get_input_source(inputs: list[dict], input_id: dict):
+    for inp in inputs:
+        if inp["id"] == input_id:
+            return inp.get("source")  # returns None if 'source' doesn't exist
+    return None  # returns None if input_id is not found

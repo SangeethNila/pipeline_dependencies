@@ -1,7 +1,7 @@
 from pathlib import Path
 import re
 from neo4j import Driver
-from graph_creation.utils import extract_js_expression_dependencies, process_in_param, process_parameter_source
+from graph_creation.utils import extract_js_expression_dependencies, get_input_source, process_control_dependencies, process_in_param, process_parameter_source
 from neo4j_dependency_queries.create_node_queries import ensure_component_node, ensure_git_node, ensure_in_parameter_node, ensure_out_parameter_node
 from neo4j_dependency_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_out_param_relationship, create_references_relationship
 
@@ -111,7 +111,8 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
     Returns:
         None
     """ 
-    component_id = cwl_entity['path']
+    workflow_id = cwl_entity['path']
+    control_relationships = dict()
 
     for step in cwl_entity['steps']:
 
@@ -139,29 +140,25 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
             if 'source' in input:
                 if isinstance(input['source'], str):
                     source_id = input['source']
-                    process_parameter_source(driver, param_node_internal_id, source_id, component_id, step_lookup)
+                    process_parameter_source(driver, param_node_internal_id, source_id, workflow_id, step_lookup)
                 elif isinstance(input['source'], list):
                     for source_id in input['source']:
-                        process_parameter_source(driver, param_node_internal_id, source_id, component_id, step_lookup)
+                        process_parameter_source(driver, param_node_internal_id, source_id, workflow_id, step_lookup)
 
         # Process the "when" field, aka control dependencies
         if 'when' in step:
             when_expr = step['when']
             when_refs = extract_js_expression_dependencies(when_expr)
-
-            nodes = []
+            source = None
             for ref in when_refs:
-                print(ref)
-                ref_id = ref[1]
                 if ref[0] == "parameter":
-                    input_data = ensure_in_parameter_node(driver, ref_id, step_path)[0]
-                    nodes.append(input_data)
-                # elif ref[0] == "step_output":
-                #     step_output = ensure_out_parameter_node(driver, ref_id, cwl_entity['path'])[0]
-                #     nodes.append(step_output)
+                    source = get_input_source(step['in'], ref[1])
+                else: 
+                    source = ref[1]
+                if source:
+                    process_control_dependencies(driver, source, workflow_id, step_path, step_lookup)
 
-            for node in nodes:
-                create_control_relationship(driver, s_node_internal_id, node, cwl_entity['path'])
+            control_relationships[step_path] = ()
 
         # Process the list of outputs of the step
         for output in step['out']:
