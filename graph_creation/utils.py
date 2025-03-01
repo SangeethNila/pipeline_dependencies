@@ -1,5 +1,6 @@
 from pathlib import Path
 from neo4j import Driver
+import re
 from graph_creation.cwl_parsing import get_cwl_from_repo
 from neo4j_dependency_queries.create_node_queries import ensure_in_parameter_node, ensure_out_parameter_node
 from neo4j_dependency_queries.create_edge_queries import create_data_relationship, create_in_param_relationship
@@ -42,7 +43,6 @@ def process_in_param(driver: Driver, param_id: str, component_id: str, param_typ
     Returns:
         None
     """
-    is_workflow = entity_type == "Workflow"
 
     param_node = ensure_in_parameter_node(driver, param_id, component_id, param_type, entity_type)
     if entity_type == "Workflow":
@@ -103,3 +103,27 @@ def resolve_relative_path(path: Path)-> Path:
         elif part != ".":
             parts.append(part)
     return Path(*parts)
+
+def extract_js_expression_dependencies(js_expression: str) -> list[tuple[str, str]]:
+    """
+    Extracts dependencies from a JavaScript expression in a CWL workflow step's "when" field.
+
+    Parameters:
+        js_expression (str): The JavaScript expression as a string.
+
+    Returns:
+        list[tuple[str, str]]: A list of references to inputs or outputs.
+            - ("parameter", <param ID>) for step inputs (e.g., inputs.myParam)
+            - ("step_output", <step ID>/<output ID>) for step outputs (e.g., steps.step1.outputs.out1)
+    """
+    ref_list = []
+
+    # Match inputs.[param ID]
+    param_matches = re.findall(r'\binputs\.([a-zA-Z_]\w*)', js_expression)
+    ref_list.extend([("parameter", param) for param in param_matches])
+
+    # Match steps.[step ID].outputs.[output ID]
+    step_output_matches = re.findall(r'\bsteps\.([a-zA-Z_]\w*)\.outputs\.([a-zA-Z_]\w*)', js_expression)
+    ref_list.extend([("step_output", f"{step}/{output}") for step, output in step_output_matches])
+
+    return ref_list

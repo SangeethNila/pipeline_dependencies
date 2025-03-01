@@ -1,9 +1,8 @@
 from neo4j import Driver, GraphDatabase, Session
 
-from neo4j_dependency_queries.processing_queries import get_all_out_parameter_nodes_of_entity, get_all_outer_out_parameter_nodes, get_all_outermost_workflow_ids, get_all_outgoing_edges, get_node_details, get_nodes_with_control_edges, get_valid_connections, get_workflow_list_of_data_edge, update_workflow_list_of_edge, update_workflow_list_of_node
+from neo4j_dependency_queries.processing_queries import get_all_out_parameter_nodes_of_entity, get_all_outer_out_parameter_nodes, get_all_outgoing_edges, get_node_details, get_nodes_with_control_edges, get_valid_connections, get_workflow_list_of_data_edge, update_workflow_list_of_edge, update_workflow_list_of_node
 from neo4j_dependency_queries.utils import clean_component_id
 from neo4j_flow_queries.create_queries import create_calculation_component_node, create_direct_flow, create_indirect_flow, create_sequential_indirect_flow
-from neo4j_dependency_queries.processing_queries import get_all_workflow_ids
 
 class DependencyTraversalDFS:
     """Class to perform DFS traversal and save the resulting subgraph."""

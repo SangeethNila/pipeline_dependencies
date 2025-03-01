@@ -1,14 +1,11 @@
 from pathlib import Path
 import re
 from neo4j import Driver
-from graph_creation.cst_processing import traverse_when_statement_extract_dependencies
-from graph_creation.utils import process_in_param, process_parameter_source
+from graph_creation.utils import extract_js_expression_dependencies, process_in_param, process_parameter_source
 from neo4j_dependency_queries.create_node_queries import ensure_component_node, ensure_git_node, ensure_in_parameter_node, ensure_out_parameter_node
 from neo4j_dependency_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_out_param_relationship, create_references_relationship
 
 from neo4j_dependency_queries.utils import get_is_workflow
-from parsers.javascript_parsing import parse_javascript_expression_string, parse_javascript_string
-
 
 def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
     """
@@ -150,11 +147,11 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
         # Process the "when" field, aka control dependencies
         if 'when' in step:
             when_expr = step['when']
-            expr_tree = parse_javascript_expression_string(when_expr)
-            when_refs = traverse_when_statement_extract_dependencies(expr_tree)
+            when_refs = extract_js_expression_dependencies(when_expr)
 
             nodes = []
             for ref in when_refs:
+                print(ref)
                 ref_id = ref[1]
                 if ref[0] == "parameter":
                     input_data = ensure_in_parameter_node(driver, ref_id, step_path)[0]
@@ -230,12 +227,6 @@ def process_cwl_commandline(driver, entity, links):
             if command in entry_map:
                 all_links = links["commands"] | links["paths"]
                 print(entry_map[command])
-                # Regular expression pattern to match POSIX file paths
-                # pattern = r'(?<![\'"\[])(/[\w/.-]+(?:\.[a-zA-Z0-9]+)?)(?![\'"\]])'
-
-                # # Find all POSIX paths in the bash script
-                # posix_paths = re.findall(pattern, entry_map[command])
-                # print(posix_paths)
 
                 for key, value in all_links.items():
                     path = str(Path(key).as_posix())
