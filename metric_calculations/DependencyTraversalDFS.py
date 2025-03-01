@@ -1,6 +1,6 @@
 from neo4j import Driver, GraphDatabase, Session
 
-from neo4j_dependency_queries.processing_queries import get_all_out_parameter_nodes_of_entity, get_all_outer_out_parameter_nodes, get_all_outgoing_edges, get_node_details, get_nodes_with_control_edges, get_valid_connections, get_workflow_list_of_data_edge, update_workflow_list_of_edge, update_workflow_list_of_node
+from neo4j_dependency_queries.processing_queries import get_all_in_parameter_nodes_of_entity, get_all_out_parameter_nodes_of_entity, get_all_outer_out_parameter_nodes, get_all_outgoing_edges, get_node_details, get_nodes_with_control_edges, get_valid_connections, get_workflow_list_of_data_edge, update_workflow_list_of_edge, update_workflow_list_of_node
 from neo4j_dependency_queries.utils import clean_component_id
 from neo4j_flow_queries.create_queries import create_calculation_component_node, create_direct_flow, create_indirect_flow, create_sequential_indirect_flow
 
@@ -38,7 +38,7 @@ class DependencyTraversalDFS:
         start_component_id = clean_component_id(component_id)
         
         # Find all starting nodes with the given component_id
-        result = get_all_out_parameter_nodes_of_entity(session, start_component_id)
+        result = get_all_in_parameter_nodes_of_entity(session, start_component_id)
         start_nodes = [record["nodeId"] for record in result]
 
         for node_id in start_nodes:
@@ -51,8 +51,8 @@ class DependencyTraversalDFS:
 
         component_id, current_node_labels, entity_type, workflow_list = get_node_details(session, node_id)
 
-        # If an OutParameter node has a new component_id, expand allowed list
-        if "OutParameter" in current_node_labels and component_id not in allowed_component_ids:
+        # If an InParameter node has a new component_id, expand allowed list
+        if "InParameter" in current_node_labels and component_id not in allowed_component_ids:
 
             allowed_component_ids.add(component_id)
             if entity_type == "Workflow":
@@ -66,11 +66,7 @@ class DependencyTraversalDFS:
         update_workflow_list_of_node(session, node_id, list(workflow_set.copy()))
 
         
-
-        if "InParameter" in current_node_labels and component_id  not in allowed_component_ids:
-            raise ValueError()
-        
-        if "InParameter" in current_node_labels and component_id in allowed_component_ids:
+        if "OutParameter" in current_node_labels and component_id in allowed_component_ids:
             allowed_component_ids.remove(component_id)
             if component_id in workflow_set:
                 workflow_set.remove(component_id)
@@ -136,15 +132,13 @@ class DependencyTraversalDFS:
 
 
             
-            if "OutParameter" in next_node_labels:
+            if "InParameter" in next_node_labels:
                 create_calculation_component_node(session, next_component_id, next_entity_type)
                 create_direct_flow(session, edge_component_id, next_component_id, edge_component_id, data_ids, workflow_list)
                 create_indirect_flow(session, next_component_id, edge_component_id, edge_component_id, data_ids, workflow_list)
 
-                # If the relation is B -> A where B is InParameter and A is OutParameter
-                if "InParameter" in current_node_labels:
-                    # Then there is a direct flow from A to B
-                    create_sequential_indirect_flow(session, next_component_id, component_id, edge_component_id, data_ids, workflow_list)
+                if "OutParameter" in current_node_labels:
+                    create_sequential_indirect_flow(session, component_id, next_component_id, edge_component_id, data_ids, workflow_list)
 
             # Recursively continue DFS
             self._dfs_traverse(session, next_node_id, visited_nodes, entities)

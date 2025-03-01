@@ -30,7 +30,7 @@ def get_nodes_with_control_edges(session: Session):
 
 def get_valid_connections(session: Session, node_id, allowed_component_ids):
     query = """
-    MATCH (n)-[r: DATA]->(m)
+    MATCH (n)-[r: DATA_FLOW]->(m)
     WHERE elementId(n) = $node_id AND r.component_id IN $allowed_component_ids
     RETURN elementId(m) AS nextNodeId, elementId(r) AS relId, m.component_id AS nextComponentId, 
         labels(m) AS nodeLabels, type(r) AS relType, r.component_id AS relComponentId,
@@ -69,7 +69,7 @@ def update_workflow_list_of_edge(session: Session, edge_id: str, workflow_ids: l
     session.run(query, edge_id=edge_id, workflow_ids=workflow_ids)
 
 def get_workflow_list_of_data_edge(session: Session, source_id: str, target_id:str, edge_component_id: str):
-    query = """MATCH (m)-[r:DATA]->(n)
+    query = """MATCH (m)-[r:DATA_FLOW]->(n)
         WHERE elementId(m) = $source_id AND elementId(n) = $target_id AND r.component_id = $component_id
         RETURN r.workflow_list AS workflow_list"""
     result = session.run(query, source_id=source_id, target_id=target_id, component_id=edge_component_id)

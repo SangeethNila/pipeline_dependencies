@@ -21,7 +21,7 @@ def create_in_param_relationship(driver: Driver, prefixed_component_id: str, par
     query = """
     MATCH (c:Component {component_id: $component_id}), (p:InParameter)
     WHERE elementId(p) = $parameter_internal_id
-    MERGE (c)-[r:DATA {component_id: $component_id}]->(p)
+    MERGE (c)<-[r:DATA_FLOW {component_id: $component_id}]->(p)
     SET r.data_ids = 
         CASE 
             WHEN r.data_ids IS NULL THEN [p.parameter_id]
@@ -55,7 +55,7 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
     query = """
     MATCH (c:Component {component_id: $component_id}), (p: OutParameter)
     WHERE elementId(p) = $parameter_internal_id
-    MERGE (c)<-[r:DATA {component_id: $component_id}]-(p)
+    MERGE (c)-[r:DATA_FLOW {component_id: $component_id}]->(p)
     SET r.data_ids = 
         CASE 
             WHEN r.data_ids IS NULL THEN [p.parameter_id]
@@ -88,7 +88,7 @@ def create_data_relationship(driver: Driver, from_internal_node_id: int, to_inte
     query = """
     MATCH (a), (b)
     WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
-    MERGE (a)-[r:DATA {component_id: $component_id}]->(b)
+    MERGE (a)-[r:DATA_FLOW {component_id: $component_id}]->(b)
     SET r.data_ids = 
         CASE 
             WHEN r.data_ids IS NULL THEN [$data_id]
@@ -122,7 +122,7 @@ def create_control_relationship(driver: Driver, from_internal_node_id: int, to_i
     query = """
     MATCH (a), (b)
     WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
-    MERGE (a)-[r:CONTROL {component_id: $component_id}]->(b)
+    MERGE (a)-[r:CONTROL_DEPENDENCY {component_id: $component_id}]->(b)
     SET r.data_ids = 
         CASE 
             WHEN r.data_ids IS NULL THEN [$data_id]

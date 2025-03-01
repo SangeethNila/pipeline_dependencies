@@ -67,7 +67,7 @@ def process_parameter_source(driver: Driver, param_node_internal_id: int, source
     source_param_node = get_source_node(driver, source_id, workflow_id, step_lookup)
 
     # Create a relationship between the parameter node and its source
-    create_data_relationship(driver, param_node_internal_id, source_param_node, workflow_id, source_id)
+    create_data_relationship(driver, source_param_node, param_node_internal_id,workflow_id, source_id)
 
 
 def get_source_node(driver: Driver, source_id: str, workflow_id: str, step_lookup: dict) -> None:

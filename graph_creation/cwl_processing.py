@@ -133,8 +133,7 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
             param_node = ensure_in_parameter_node(driver, input['id'], step_path)
             param_node_internal_id = param_node[0]
             if is_tool:
-                # Create a data edge from the step component node to the in-parameter node
-                create_data_relationship(driver, s_node_internal_id, param_node_internal_id, step_path, input['id'])
+                create_data_relationship(driver, param_node_internal_id, s_node_internal_id, step_path, input['id'])
 
             # Inputs can have one or multiple data sources (data nodes)
             if 'source' in input:
@@ -176,7 +175,7 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
             param_node_internal_id = param_node[0]
             if is_tool:
                 # Create a data edge from out-parameter node to the step component node
-                create_data_relationship(driver, param_node_internal_id, s_node_internal_id, step_path, output_id)
+                create_data_relationship(driver, s_node_internal_id, param_node_internal_id, step_path, output_id)
 
 
 def process_cwl_base_commands(driver, entity, links):
