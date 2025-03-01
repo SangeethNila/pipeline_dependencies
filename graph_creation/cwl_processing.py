@@ -156,7 +156,11 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
                 else: 
                     source = ref[1]
                 if source:
-                    process_control_dependencies(driver, source, workflow_id, step_path, step_lookup)
+                    if isinstance(source, list):
+                        for source_id in source:
+                            process_control_dependencies(driver, source_id, workflow_id, step_path, step_lookup)
+                    else:
+                        process_control_dependencies(driver, source, workflow_id, step_path, step_lookup)
 
             control_relationships[step_path] = ()
 
