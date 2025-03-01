@@ -104,7 +104,6 @@ def get_all_outermost_workflow_ids(session: Session):
         """
     result = session.run(query)
     unique_component_ids = result.single()["unique_component_ids"]
-    print(unique_component_ids)
     return unique_component_ids
 
 def get_all_out_parameter_nodes_of_entity(session: Session, component_id: str):

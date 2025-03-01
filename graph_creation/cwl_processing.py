@@ -29,8 +29,9 @@ def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
                 process_in_param(driver, input['id'], component_id, input['type'], cwl_entity['class'])
     elif isinstance(cwl_entity['inputs'], dict):
         # If 'inputs' is a dictionary, iterate over the keys (which are the input IDs)
-        for key in cwl_entity['inputs'].keys():
-            process_in_param(driver, key, component_id, None, cwl_entity['class'])
+        input_dict = cwl_entity['inputs']
+        for key in input_dict.keys():
+            process_in_param(driver, key, component_id, input_dict[key]['type'], cwl_entity['class'])
 
 def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup) -> None:
     """

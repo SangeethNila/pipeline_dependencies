@@ -21,7 +21,7 @@ def create_in_param_relationship(driver: Driver, prefixed_component_id: str, par
     query = """
     MATCH (c:Component {component_id: $component_id}), (p:InParameter)
     WHERE elementId(p) = $parameter_internal_id
-    MERGE (c)<-[r:DATA_FLOW {component_id: $component_id}]->(p)
+    MERGE (c)<-[r:DATA_FLOW {component_id: $component_id}]-(p)
     SET r.data_ids = 
         CASE 
             WHEN r.data_ids IS NULL THEN [p.parameter_id]
