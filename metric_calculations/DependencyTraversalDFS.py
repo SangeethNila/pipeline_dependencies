@@ -1,6 +1,8 @@
 from neo4j import Driver, GraphDatabase, Session
-
-from neo4j_dependency_queries.processing_queries import get_all_in_parameter_nodes_of_entity, get_all_out_parameter_nodes_of_entity, get_all_outer_out_parameter_nodes, get_all_outgoing_edges, get_node_details, get_nodes_with_control_edges, get_valid_connections, get_workflow_list_of_data_edge, update_workflow_list_of_edge, update_workflow_list_of_node
+from collections import deque
+import copy
+import networkx as nx
+from neo4j_dependency_queries.processing_queries import get_all_in_parameter_nodes_of_entity, get_all_outer_out_parameter_nodes, get_all_outgoing_edges, get_node_details, get_nodes_with_control_edges, get_valid_connections, get_workflow_list_of_data_edges_from_node, instantiate_workflow_list, update_workflow_list_of_edge
 from neo4j_dependency_queries.utils import clean_component_id
 from neo4j_flow_queries.create_queries import create_calculation_component_node, create_direct_flow, create_indirect_flow, create_sequential_indirect_flow
 
@@ -17,23 +19,55 @@ class DependencyTraversalDFS:
         """Closes the Neo4j database connection."""
         self.driver.close()
 
+    def get_data_flow_relationships(self, session):
+        query = """
+        MATCH (a:InParameter)-[:DATA_FLOW]->(b:InParameter)
+        RETURN a.component_id AS componentA, b.component_id AS componentB
+        """
+        result = session.run(query)
+        edges = [(record['componentA'], record['componentB']) for record in result]
+        return edges
+
+    # Build a directed graph and perform a topological sort
+    def perform_topological_sort(self,session):
+        # Get the edges (relationships) from Neo4j
+        edges = self.get_data_flow_relationships(session)
+
+        # Create a directed graph
+        G = nx.DiGraph()
+        
+        # Add edges to the graph
+        G.add_edges_from(edges)
+
+        # Perform topological sort
+        try:
+            sorted_components = list(nx.topological_sort(G))
+            return sorted_components
+        except nx.NetworkXUnfeasible:
+            raise Exception("The graph is not a DAG (Directed Acyclic Graph), so a topological sort is not possible.")
+
     def preprocess_all_graphs(self):
         with self.driver.session() as session:
-            # outer_workflow_ids = get_all_outermost_workflow_ids(session)
-            # for workflow in outer_workflow_ids:
-            #     print(f"Preprocessing: {workflow}")
-            #     self.traverse_graph_process_paths(session, workflow)
+            sorted_components = self.perform_topological_sort(session)
+            bookkeeping = {}
+            if sorted_components:
+                print("Topologically Sorted Component IDs:", sorted_components)
+            outer_workflow_ids = sorted_components
+            instantiate_workflow_list(session)
+            for workflow in outer_workflow_ids:
+                print(f"Preprocessing: {workflow}")
+                self.traverse_graph_process_paths(session, workflow, bookkeeping)
             control_pairs = get_nodes_with_control_edges(session)
             for pair in control_pairs:
-                source_id = pair["sourceId"]
                 target_id = pair["targetId"]
                 edge_component_id = pair["componentId"]
                 edge_id = pair["edgeId"]
-                workflow_list = get_workflow_list_of_data_edge(session, source_id, target_id, edge_component_id)
-                update_workflow_list_of_edge(session, edge_id, workflow_list)
+                result = get_workflow_list_of_data_edges_from_node(session, target_id, edge_component_id)
+                workflow_lists = [record["workflow_list"] for record in result]
+                update_workflow_list_of_edge(session, edge_id, workflow_lists[0])
 
 
-    def traverse_graph_process_paths(self, session: Session, component_id: str):
+    def traverse_graph_process_paths(self, session: Session, component_id: str, bookkeeping):
         """Performs DFS traversal and stores the resulting subgraph in Neo4j."""
         start_component_id = clean_component_id(component_id)
         
@@ -42,45 +76,63 @@ class DependencyTraversalDFS:
         start_nodes = [record["nodeId"] for record in result]
 
         for node_id in start_nodes:
-            allowed_component_ids = {start_component_id}  # Set of allowed component_ids
             workflow_set = {start_component_id}
-            self._dfs_traverse_paths(session, start_component_id, node_id, allowed_component_ids, workflow_set)
+            self._dfs_traverse_paths(session, start_component_id, node_id, workflow_set,deque([]), bookkeeping)
             
-    def _dfs_traverse_paths(self, session: Session, workflow_id: str, node_id: int, allowed_component_ids: set, workflow_set: set):
+    def _dfs_traverse_paths(self, session: Session, workflow_id: str, node_id: int, workflow_set: set, entity_queue: deque, bookkeeping: dict[str, list]):
         """Recursively performs DFS traversal and saves the subgraph."""
 
-        component_id, current_node_labels, entity_type, workflow_list = get_node_details(session, node_id)
+        component_id, current_node_labels, entity_type = get_node_details(session, node_id)
 
-        # If an InParameter node has a new component_id, expand allowed list
-        if "InParameter" in current_node_labels and component_id not in allowed_component_ids:
-
-            allowed_component_ids.add(component_id)
+        # If an InParameter node has a new component_id, enter this component
+        if "InParameter" in current_node_labels:
+            entity_queue.append(component_id)
             if entity_type == "Workflow":
                 workflow_set.add(component_id)
 
-            print(f"New component_id added in the path: {component_id}")
-
-        if workflow_list:
-            if workflow_set.issubset(workflow_list):
-                return
-        update_workflow_list_of_node(session, node_id, list(workflow_set.copy()))
-
+        if not entity_queue:
+            return
         
-        if "OutParameter" in current_node_labels and component_id in allowed_component_ids:
-            allowed_component_ids.remove(component_id)
+        # Exit component when an OutParameter is found
+        if "OutParameter" in current_node_labels:
+            if component_id != entity_queue[-1]:
+                raise ValueError("Something went wrong.")
+            entity_queue.pop()
             if component_id in workflow_set:
                 workflow_set.remove(component_id)
 
+        if not entity_queue:
+            return
+        
+        current_list = list(entity_queue)
+        if node_id in bookkeeping:
+            for existing_list in bookkeeping[node_id]:
+                if existing_list == current_list:
+                    return
+                elif len(existing_list) > len(current_list):
+                    if existing_list[-len(current_list):] == current_list:
+                        return
+            else:
+                bookkeeping[node_id].append(current_list)
+        else:
+            bookkeeping[node_id] = list()
+            bookkeeping[node_id].append(current_list)
+
+        
         # Find valid connections
-        results = get_valid_connections(session, node_id, allowed_component_ids)
+        results = get_valid_connections(session, node_id, entity_queue[-1])
+        records = [ (record["relId"], record["nextNodeId"]) for record in results]
 
-        for record in results:            
-            edge_id = record["relId"]
-            next_node_id = record["nextNodeId"]
+        for record in records:            
+            edge_id = record[0]
+            edge_workflow_set = workflow_set.copy()
 
-            update_workflow_list_of_edge(session, edge_id, list(workflow_set.copy()))
+            next_node_id = record[1]
+
+            update_workflow_list_of_edge(session, edge_id, sorted(list(edge_workflow_set)))
+            new_queue = copy.deepcopy(entity_queue)
             # Recursively continue DFS
-            self._dfs_traverse_paths(session, workflow_id, next_node_id, allowed_component_ids.copy(), workflow_set.copy())
+            self._dfs_traverse_paths(session, workflow_id, next_node_id, edge_workflow_set, new_queue, bookkeeping)
 
     def traverse_graph_create_flows(self):
         with self.driver.session() as session:

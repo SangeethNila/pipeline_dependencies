@@ -6,32 +6,30 @@ from neo4j_dependency_queries.utils import clean_component_id
 def get_node_details(session: Session, node_id):
     query = """
     MATCH (n) WHERE elementId(n) = $node_id
-    RETURN n.component_id AS component_id, labels(n) AS nodeLabels, n.entity_type AS entityType,
-    CASE WHEN n.workflow_list IS NOT NULL THEN n.workflow_list ELSE null END AS workflowList
+    RETURN n.component_id AS component_id, labels(n) AS nodeLabels, n.entity_type AS entityType
     """
     result = session.run(query, node_id=node_id)
     record = result.single()
     component_id = record["component_id"]
     node_labels = record["nodeLabels"]
     entity_type = record["entityType"]
-    workflow_list = record["workflowList"]
 
-    return component_id, node_labels, entity_type, workflow_list
+    return component_id, node_labels, entity_type
 
 def get_nodes_with_control_edges(session: Session):
     query = """
     MATCH (m)-[r]->(n)
-    WHERE type(r) = 'CONTROL'
+    WHERE type(r) = 'CONTROL_DEPENDENCY'
     RETURN elementId(m) AS sourceId, elementId(n) AS targetId, r.component_id AS componentId, elementId(r) AS edgeId
     """
     result = session.run(query)
 
     return result
 
-def get_valid_connections(session: Session, node_id, allowed_component_ids):
+def get_valid_connections(session: Session, node_id: str, component_id: str):
     query = """
     MATCH (n)-[r: DATA_FLOW]->(m)
-    WHERE elementId(n) = $node_id AND r.component_id IN $allowed_component_ids
+    WHERE elementId(n) = $node_id AND r.component_id = $component_id
     RETURN elementId(m) AS nextNodeId, elementId(r) AS relId, m.component_id AS nextComponentId, 
         labels(m) AS nodeLabels, type(r) AS relType, r.component_id AS relComponentId,
         r.data_ids AS dataIds,
@@ -39,7 +37,7 @@ def get_valid_connections(session: Session, node_id, allowed_component_ids):
         CASE WHEN m.entity_type IS NOT NULL THEN m.entity_type ELSE null END AS nextEntityType,
         CASE WHEN r.workflow_list IS NOT NULL THEN r.workflow_list ELSE null END AS workflowList
     """
-    results = session.run(query, node_id=node_id, allowed_component_ids=list(allowed_component_ids))
+    results = session.run(query, node_id=node_id, component_id=component_id)
     return results
 
 def get_all_outgoing_edges(session: Session, node_id):
@@ -68,38 +66,23 @@ def update_workflow_list_of_edge(session: Session, edge_id: str, workflow_ids: l
         RETURN r.workflow_list"""
     session.run(query, edge_id=edge_id, workflow_ids=workflow_ids)
 
-def get_workflow_list_of_data_edge(session: Session, source_id: str, target_id:str, edge_component_id: str):
+def get_workflow_list_of_data_edges_from_node(session: Session, node_id:str, edge_component_id: str):
     query = """MATCH (m)-[r:DATA_FLOW]->(n)
-        WHERE elementId(m) = $source_id AND elementId(n) = $target_id AND r.component_id = $component_id
+        WHERE elementId(m) = $node_id AND r.component_id = $component_id
         RETURN r.workflow_list AS workflow_list"""
-    result = session.run(query, source_id=source_id, target_id=target_id, component_id=edge_component_id)
-    return result.single()["workflow_list"]
+    result = session.run(query, node_id=node_id, component_id=edge_component_id)
+    return result
 
-
-def update_workflow_list_of_node(session: Session, node_id: str, workflow_ids: list):
-    query = """MATCH (m)-[]->()
-        WHERE elementId(m) = $node_id
-        SET m.workflow_list = 
-            CASE 
-                WHEN m.workflow_list IS NULL THEN $workflow_ids
-                ELSE m.workflow_list + [x IN $workflow_ids WHERE NOT x IN m.workflow_list]
-            END
-        RETURN m.workflow_list"""
-    session.run(query, node_id=node_id, workflow_ids=workflow_ids)
+def instantiate_workflow_list(session: Session):
+    query = """MATCH ()-[r:DATA_FLOW]->()
+        WHERE r.workflow_list IS NULL
+        SET r.workflow_list = []"""
+    session.run(query)
 
 
 def get_all_workflow_ids(session: Session):
     query = """MATCH (n:InParameter)
         WHERE n.entity_type = "Workflow"
-        RETURN COLLECT(DISTINCT n.component_id) AS unique_component_ids;
-        """
-    result = session.run(query)
-    unique_component_ids = result.single()["unique_component_ids"]
-    return unique_component_ids
-
-def get_all_outermost_workflow_ids(session: Session):
-    query = """MATCH (n:InParameter)
-        WHERE n.entity_type = "Workflow" AND NOT (n)-[]->()
         RETURN COLLECT(DISTINCT n.component_id) AS unique_component_ids;
         """
     result = session.run(query)
