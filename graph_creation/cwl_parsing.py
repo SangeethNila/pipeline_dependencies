@@ -20,29 +20,31 @@ def get_cwl_from_repo(repo_path: str) -> tuple[list[dict],list[dict]]:
     cwl_workflow_entities = []
     cwl_tool_entities = []
     # Recursively find all CWL files in the repository
-    pathlist = Path(repo_path).glob('**/*.cwl')
+    pathlist = list(Path(repo_path).rglob("*.cwl"))
 
     for path in pathlist:
-        path_in_str = str(path)
-
-        # Detect file encoding to handle non-UTF-8 encoded files
-        with open(path, 'rb') as file:
-            raw_data = file.read()
-            result = chardet.detect(raw_data)
-            encoding = result['encoding']
-
-        # Open the file using the detected encoding and parse it as YAML
-        with open(path, "r", encoding=encoding) as file:
-            yaml = ruamel.yaml.YAML()
-            yaml_dict = yaml.load(file)
-
-            # Add the file path to the dictionary for reference
-            yaml_dict['path'] = path_in_str
-
-            # Categorize the file based on its 'class' field
-            if get_is_workflow(yaml_dict):
-                cwl_workflow_entities.append(yaml_dict)
-            else:
-                cwl_tool_entities.append(yaml_dict)
+        processed_cwl = process_cwl_file(str(path))
+        if get_is_workflow(processed_cwl):
+            cwl_workflow_entities.append(processed_cwl)
+        else:
+            cwl_tool_entities.append(processed_cwl)
 
     return cwl_workflow_entities, cwl_tool_entities
+
+def process_cwl_file(path: str):
+    # Detect file encoding to handle non-UTF-8 encoded files
+    with open(path, 'rb') as file:
+        raw_data = file.read()
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
+
+    # Open the file using the detected encoding and parse it as YAML
+    with open(path, "r", encoding=encoding) as file:
+        yaml = ruamel.yaml.YAML()
+        yaml_dict = yaml.load(file)
+
+        # Add the file path to the dictionary for reference
+        yaml_dict['path'] = path
+
+        # Categorize the file based on its 'class' field
+        return yaml_dict
