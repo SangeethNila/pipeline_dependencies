@@ -8,7 +8,7 @@ from neo4j_dependency_queries.processing_queries import get_all_in_parameter_nod
 
 GITLAB_ASTRON ='https://git.astron.nl'
 
-def process_step_lookup(cwl_entity: dict) -> dict:
+def process_step_lookup(cwl_entity: dict) -> dict[str, str]:
     """
     Processes the steps in a CWL entity to create a lookup dictionary mapping step IDs to their resolved file paths.
 
@@ -30,7 +30,7 @@ def process_step_lookup(cwl_entity: dict) -> dict:
         step_lookup[step['id']] = step_path
     return step_lookup
 
-def process_in_param(driver: Driver, param_id: str, component_id: str, param_type: str, entity_type: str):
+def process_in_param(driver: Driver, param_id: str, component_id: str, param_type: str, entity_type: str) -> None:
     """
     Processes an input parameter by ensuring its node exists and optionally creating a relationship 
     between the component and the parameter node.
@@ -60,7 +60,7 @@ def process_parameter_source(driver: Driver, param_node_internal_id: int, source
         source_id (str): The source identifier, which can be a single identifier (in case the source is an in-param of the workflow)
             or include a subcomponent (e.g., "source" or "sub_component/source")
         workflow_id (str): The ID of workflow to which the data relationships belong
-        step_lookup (dict): A mapping of subcomponent identifiers to their respective unique paths within the workflow
+        step_lookup (dict): A mapping of step identifiers to their respective unique paths
 
     Returns:
         None
@@ -71,7 +71,7 @@ def process_parameter_source(driver: Driver, param_node_internal_id: int, source
     create_data_relationship(driver, source_param_node, param_node_internal_id,workflow_id, source_id, step_id)
 
 
-def get_source_node(driver: Driver, source_id: str, workflow_id: str, step_lookup: dict) -> None:
+def get_source_node(driver: Driver, source_id: str, workflow_id: str, step_lookup: dict) -> int:
     """
     Retrieves the node corresponding to the given source identifier.
 
@@ -101,7 +101,7 @@ def get_source_node(driver: Driver, source_id: str, workflow_id: str, step_looku
         source_param_node = ensure_out_parameter_node(driver, source_parsed[1], sub_component_id)[0]
     return source_param_node
 
-def process_control_dependencies(driver: Driver, source_id: str, workflow_id: str, component_id: str, step_lookup: dict, step_id: str):
+def process_control_dependencies(driver: Driver, source_id: str, workflow_id: str, component_id: str, step_lookup: dict, step_id: str) -> None:
     """
     Processes control dependencies by creating control relationships between the given source and
     all in-parameters of the specified component.
@@ -159,9 +159,9 @@ def extract_js_expression_dependencies(js_expression: str) -> list[tuple[str, st
         js_expression (str): The JavaScript expression as a string.
 
     Returns:
-        list[tuple[str, str]]: A list of references to inputs or outputs.
-            - ("parameter", <param ID>) for step inputs (e.g., inputs.myParam)
-            - ("step_output", <step ID>/<output ID>) for step outputs (e.g., steps.step1.outputs.out1)
+        A list of references to step inputs or outputs.
+            - ("parameter", [param ID]) for step inputs (e.g., inputs.myParamId)
+            - ("step_output", [step ID]/[output ID]) for step outputs (e.g., steps.stepId.outputs.outID)
     """
     ref_list = []
 
@@ -175,7 +175,17 @@ def extract_js_expression_dependencies(js_expression: str) -> list[tuple[str, st
 
     return ref_list
 
-def get_input_source(inputs: list[dict], input_id: dict):
+def get_input_source(inputs: list[dict], input_id: str) -> str | None:
+    """
+    Retrieves the 'source' value for a given input ID from a list of input dictionaries.
+
+    Parameters:
+        inputs (list[dict]): A list of dictionaries representing CWL step inputs.
+        input_id (str): The ID of the input to search for.
+
+    Returns:
+        The value associated with the 'source' key if found, otherwise None.
+    """
     for inp in inputs:
         if inp["id"] == input_id:
             return inp.get("source")  # returns None if 'source' doesn't exist

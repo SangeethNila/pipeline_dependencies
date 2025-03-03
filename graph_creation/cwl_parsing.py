@@ -2,36 +2,43 @@ from pathlib import Path
 import ruamel.yaml
 import chardet
 
-from neo4j_dependency_queries.utils import get_is_workflow
-
-
-def get_cwl_from_repo(repo_path: str) -> tuple[list[dict],list[dict]]:
+def get_cwl_from_repo(repo_path: str) -> list[dict]:
     """
-    Processes all CWL (Common Workflow Language) files in a given repository, categorizing them into workflows and tools.
+    Processes all CWL (Common Workflow Language) files in a given repository.
 
     Parameters:
         repo_path (str): The path to the local repository containing CWL files.
 
     Returns:
-        tuple[list[dict], list[dict]]: 
-            - The first list contains dictionaries representing parsed CWL workflow files.
-            - The second list contains dictionaries representing parsed CWL tool files.
+        list[dict]: 
+            list of dictionaries representing parsed CWL files.
     """
-    cwl_workflow_entities = []
-    cwl_tool_entities = []
+    cwl_entities = []
     # Recursively find all CWL files in the repository
     pathlist = list(Path(repo_path).rglob("*.cwl"))
 
     for path in pathlist:
         processed_cwl = process_cwl_file(str(path))
-        if get_is_workflow(processed_cwl):
-            cwl_workflow_entities.append(processed_cwl)
-        else:
-            cwl_tool_entities.append(processed_cwl)
+        cwl_entities.append(processed_cwl)
+    return cwl_entities
 
-    return cwl_workflow_entities, cwl_tool_entities
+def process_cwl_file(path: str) -> dict:
+    """
+    Processes a Common Workflow Language (CWL) file by detecting its encoding 
+    and parsing it as YAML.
 
-def process_cwl_file(path: str):
+    Parameters:
+        path (str): The file path to the CWL file.
+
+    Returns:
+        dict: A dictionary representation of the YAML content, with an additional 
+              'path' key containing the file path.
+    
+    Notes:
+        - Uses `chardet` to detect file encoding, ensuring compatibility with 
+          non-UTF-8 encoded files.
+        - Uses `ruamel.yaml` for YAML parsing to preserve formatting and ordering.
+    """
     # Detect file encoding to handle non-UTF-8 encoded files
     with open(path, 'rb') as file:
         raw_data = file.read()
@@ -46,5 +53,4 @@ def process_cwl_file(path: str):
         # Add the file path to the dictionary for reference
         yaml_dict['path'] = path
 
-        # Categorize the file based on its 'class' field
         return yaml_dict

@@ -32,7 +32,7 @@ def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
         for key in input_dict.keys():
             process_in_param(driver, key, component_id, input_dict[key]['type'], cwl_entity['class'])
 
-def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup) -> None:
+def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup: dict) -> None:
     """
     Processes the output parameters of a CWL entity by creating the necessary nodes 
     and relationships for each output parameter in a graph or database. The function handles both singular and 
@@ -40,7 +40,6 @@ def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup) -> None:
 
     For each output in the CWL entity:
         - An out-parameter node is created for the output.
-        - If the CWL entity is not a workflow, a relationship is created between the component node and the output parameter.
         - If the output contains an 'outputSource', the function processes the relationship between the output 
           parameter and its source(s). The 'outputSource' can either be a single source ID or a list of source IDs.
 
@@ -88,12 +87,10 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, step_lookup) -> None:
     in the workflow
 
     For each step in the CWL entity:
-        - A component node is created for the step if it corresponds to a tool (identified via tool_paths)
         - The inputs are processed by creating in-parameter nodes and establishing relationships with the step
         - The "when" field (control dependencies) is processed by extracting the dependent parameters or outputs 
           and creating control relationships
-        - The outputs are processed by creating out-parameter nodes and establishing relationships with the step
-
+=
     Parameters:
         driver (Driver): The Neo4j driver used to execute queries
         cwl_entity (dict): A dictionary representing a CWL entity, which includes:
@@ -101,10 +98,7 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, step_lookup) -> None:
             - 'steps' (list): A list of steps in the workflow, each step being a dictionary containing:
                 - 'id' (str): The unique identifier for the step.
                 - 'in' (list): A list of inputs for the step.
-                - 'out' (list): A list of outputs for the step.
                 - 'when' (str, optional): A conditional expression controlling the execution of the step.
-        tool_paths (list[str]): A list of paths that correspond to tool steps. These paths are used to determine 
-                                whether a step corresponds to a tool or not.
         step_lookup (dict): A dictionary that maps step IDs to their resolved paths. This is used to resolve 
                              the actual paths of steps when processing their inputs, outputs, and control dependencies.
 
@@ -112,7 +106,6 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, step_lookup) -> None:
         None
     """ 
     workflow_id = cwl_entity['path']
-    control_relationships = dict()
 
     for step in cwl_entity['steps']:
 
@@ -137,24 +130,51 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, step_lookup) -> None:
         # Process the "when" field, aka control dependencies
         if 'when' in step:
             when_expr = step['when']
+            # Exact parameter references within conditional
             when_refs = extract_js_expression_dependencies(when_expr)
             source = None
             for ref in when_refs:
                 if ref[0] == "parameter":
+                    # Retrieve the source of the referenced input parameter
                     source = get_input_source(step['in'], ref[1])
                 else: 
+                    # The reference already mentions the source (output of a step)
                     source = ref[1]
                 if source:
+                    # Create control dependencies from the in-parameters of the step to the source of the reference
                     if isinstance(source, list):
+                        # If the source is a list, process each source ID individually
                         for source_id in source:
                             process_control_dependencies(driver, source_id, workflow_id, step_path, step_lookup, step['id'])
                     else:
+                        # Process the single source dependency
                         process_control_dependencies(driver, source, workflow_id, step_path, step_lookup, step['id'])
 
-            control_relationships[step_path] = ()
 
+def process_cwl_base_commands(driver: Driver, entity: dict, links: dict[str, dict]):
+    """
+    Processes the 'baseCommand' field in a CWL entity, with the aim of creating relationships 
+    to external GitLab in the graph.
 
-def process_cwl_base_commands(driver, entity, links):
+    Parameters:
+        driver: The Neo4j driver for executing queries.
+        entity (dict): The CWL entity containing the 'baseCommand' field.
+        links (dict): A dictionary containing:
+            - "commands": Mapping of command names (executables) to external Git repository they belong to.
+            - "paths": Mapping of file paths to external Git repository they originate from.
+
+    Returns:
+        list or None: A list of command strings if 'baseCommand' exists, otherwise None.
+
+    Process:
+        - Extracts the 'baseCommand' from the entity.
+        - If it's a list, retrieves the first command and joins all commands into a string.
+        - Checks if the first command has a file extension:
+            - If yes, searches for a matching executable in 'link_paths'.
+            - If no, checks if it's in 'link_commands'.
+        - If a match is found, ensures the command's Git node exists and 
+          creates a reference relationship in the database.
+    """
     base_command_key = "baseCommand"
     link_commands = links["commands"]
     link_paths = links["paths"]
@@ -166,12 +186,14 @@ def process_cwl_base_commands(driver, entity, links):
                 all_commands = " ".join(commands)
                 extension = Path(first_command).suffix
                 if extension:
+                    # If the first command has a file extension, look for an executable match
                     for key, value in link_paths.items():
                         if is_executable(key) and first_command in key:
                             git_internal_node_id = ensure_git_node(driver, value)[0]
                             create_references_relationship(driver, entity["path"], git_internal_node_id, all_commands)
                             break
                 else:
+                    # If no extension, check if the first command exists in link_commands
                     if first_command in link_commands:
                         git_internal_node_id = ensure_git_node(driver, link_commands[first_command])[0]
                         create_references_relationship(driver, entity["path"], git_internal_node_id, all_commands)
@@ -187,7 +209,32 @@ def get_executable(path):
     if Path(path).parts[:len(prefix.parts)] == prefix.parts:
         return Path(*Path(path).parts[len(prefix.parts):])
 
-def process_cwl_commandline(driver, entity, links):
+def process_cwl_commandline(driver: Driver, entity: dict, links: dict[str, dict]) -> None:
+    """
+    Processes the command-line tool CWL entity by resolving 
+    dependencies and linking them to relevant Git repository nodes.
+
+    Parameters:
+        driver: The Noe4j driver for executing queries.
+        entity (dict): The CWL entity containing command-line tool definitions.
+        links (dict): A dictionary containing:
+            - "commands": Mapping of command names to file paths.
+            - "paths": Mapping of file paths to Git repository locations.
+
+    Process:
+        1. Calls `process_cwl_base_commands()` to extract the command list.
+        2. Extracts file listings from 'InitialWorkDirRequirement' in 'requirements'.
+        3. If both commands and listings exist:
+            - Maps entry names to their content.
+            - Iterates over commands, checking for references in the listing.
+            - If a match is found in either 'commands' or 'paths', creates a 
+              reference relationship in the database.
+            - If the command is executable, checks for references using the 
+              executable's path as well.
+
+    Returns:
+        None
+    """
     commands = process_cwl_base_commands(driver, entity, links)
     listing = None
     if "requirements" in entity:
@@ -216,6 +263,5 @@ def process_cwl_commandline(driver, entity, links):
                             print(f"created: {value}")
                             git_internal_node_id = ensure_git_node(driver, value)[0]
                             create_references_relationship(driver, entity["path"], git_internal_node_id, entry_map[command])
-    print()
 
 

@@ -35,7 +35,7 @@ def parse_all_dockerfiles(repo_path):
 
     return links
 
-def parse_dockerfile_run_commands(dockerfile_path):
+def parse_dockerfile_run_commands(dockerfile_path: str):
     """Parse the Dockerfile and return a list of RUN commands."""
     with open(dockerfile_path, "r") as f:
         content = f.read()

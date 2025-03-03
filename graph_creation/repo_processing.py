@@ -1,12 +1,8 @@
 from neo4j import Driver 
-from process_history.process_history import get_cwl_change_history
-from metric_calculations.FlowAnalyzer import FlowAnalyzer
-from metric_calculations.DependencyTraversalDFS import DependencyTraversalDFS
 from graph_creation.cwl_parsing import get_cwl_from_repo
 from graph_creation.docker_parsing import parse_all_dockerfiles
 from graph_creation.utils import process_step_lookup
 from graph_creation.cwl_processing import process_cwl_commandline, process_cwl_inputs, process_cwl_outputs, process_cwl_steps
-from neo4j_dependency_queries.create_node_queries import ensure_component_node
 from neo4j_dependency_queries.utils import get_is_workflow
 
 def process_repos(repo_list: list[str], driver: Driver) -> None:
@@ -28,11 +24,7 @@ def process_repos(repo_list: list[str], driver: Driver) -> None:
     """
     for repo in repo_list:
         # Parse CWL files of current repo
-        workflows, tools = get_cwl_from_repo(repo)
-        # Extract tool paths for step processing later
-        tool_paths = [item["path"] for item in tools]
-        # Combine workflows and tools into one list of entities to process
-        all_entities = workflows + tools
+        all_entities = get_cwl_from_repo(repo)
 
         # links = parse_all_dockerfiles(repo)
         for entity in all_entities:
