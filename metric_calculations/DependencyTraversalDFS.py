@@ -77,9 +77,9 @@ class DependencyTraversalDFS:
 
         for node_id in start_nodes:
             workflow_set = {start_component_id}
-            self._dfs_traverse_paths(session, start_component_id, node_id, workflow_set,deque([]), bookkeeping)
+            self._dfs_traverse_paths(session, node_id, workflow_set,deque([]), bookkeeping)
             
-    def _dfs_traverse_paths(self, session: Session, workflow_id: str, node_id: int, workflow_set: set, entity_queue: deque, bookkeeping: dict[str, list]):
+    def _dfs_traverse_paths(self, session: Session, node_id: int, workflow_set: set, entity_queue: deque, bookkeeping: dict[str, list]):
         """Recursively performs DFS traversal and saves the subgraph."""
 
         component_id, current_node_labels, entity_type = get_node_details(session, node_id)
@@ -107,9 +107,7 @@ class DependencyTraversalDFS:
         current_list = list(entity_queue)
         if node_id in bookkeeping:
             for existing_list in bookkeeping[node_id]:
-                if existing_list == current_list:
-                    return
-                elif len(existing_list) > len(current_list):
+                if len(existing_list) >= len(current_list):
                     if existing_list[-len(current_list):] == current_list:
                         return
             else:
@@ -132,7 +130,7 @@ class DependencyTraversalDFS:
             update_workflow_list_of_edge(session, edge_id, sorted(list(edge_workflow_set)))
             new_queue = copy.deepcopy(entity_queue)
             # Recursively continue DFS
-            self._dfs_traverse_paths(session, workflow_id, next_node_id, edge_workflow_set, new_queue, bookkeeping)
+            self._dfs_traverse_paths(session, next_node_id, edge_workflow_set, new_queue, bookkeeping)
 
     def traverse_graph_create_flows(self):
         with self.driver.session() as session:

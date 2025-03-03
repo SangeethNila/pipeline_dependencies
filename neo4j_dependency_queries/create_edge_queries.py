@@ -1,4 +1,5 @@
 from neo4j import Driver
+from neo4j_dependency_queries.create_node_queries import ensure_component_node
 from neo4j_dependency_queries.utils import clean_component_id
 
 def create_in_param_relationship(driver: Driver, prefixed_component_id: str, parameter_internal_id: int) -> tuple[str,str]:
@@ -18,6 +19,7 @@ def create_in_param_relationship(driver: Driver, prefixed_component_id: str, par
         tuple[str,str]: the component ID of the component, the parameter ID of the parameter
     """
     component_id = clean_component_id(prefixed_component_id)
+    ensure_component_node(driver, component_id)
     query = """
     MATCH (c:Component {component_id: $component_id}), (p:InParameter)
     WHERE elementId(p) = $parameter_internal_id
@@ -52,6 +54,7 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
         tuple[str,str]: the component ID of the component, the parameter ID of the parameter
     """
     component_id = clean_component_id(prefixed_component_id)
+    ensure_component_node(driver, component_id)
     query = """
     MATCH (c:Component {component_id: $component_id}), (p: OutParameter)
     WHERE elementId(p) = $parameter_internal_id
@@ -70,7 +73,7 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
     return result
     
     
-def create_data_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int, component_id: str, data_id: str)  -> tuple[int,int]:
+def create_data_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int, component_id: str, data_id: str, step_id: str = "")  -> tuple[int,int]:
     """
     Creates a data dependency relationship in Neo4j between the two nodes with Neo4j internal IDs given as parameters.
     This relationship is an outgoing data edge from the node with internal ID from_internal_node_id
@@ -88,7 +91,7 @@ def create_data_relationship(driver: Driver, from_internal_node_id: int, to_inte
     query = """
     MATCH (a), (b)
     WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
-    MERGE (a)-[r:DATA_FLOW {component_id: $component_id}]->(b)
+    MERGE (a)-[r:DATA_FLOW {component_id: $component_id, step_id: $step_id}]->(b)
     SET r.data_ids = 
         CASE 
             WHEN r.data_ids IS NULL THEN [$data_id]
@@ -99,12 +102,14 @@ def create_data_relationship(driver: Driver, from_internal_node_id: int, to_inte
     """
     with driver.session() as session:
         result = session.run(query, from_internal_node_id=from_internal_node_id,
-                             to_internal_node_id=to_internal_node_id, component_id= clean_id, data_id=data_id)
+                             to_internal_node_id=to_internal_node_id, component_id= clean_id, data_id=data_id,
+                             step_id=step_id)
         record = result.single()
         return record["id_1"], record["id_2"]
     
 
-def create_control_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int, component_id: str, data_id: str)  -> tuple[int,int]:
+def create_control_relationship(driver: Driver, from_internal_node_id: int, to_internal_node_id: int, component_id: str, 
+                                data_id: str, step_id: str)  -> tuple[int,int]:
     """
     Creates a control dependency relationship in Neo4j between the two nodes with Neo4j internal IDs given as parameters.
     This relationship is an outgoing control edge from the node with internal ID from_internal_node_id
@@ -122,7 +127,7 @@ def create_control_relationship(driver: Driver, from_internal_node_id: int, to_i
     query = """
     MATCH (a), (b)
     WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
-    MERGE (a)-[r:CONTROL_DEPENDENCY {component_id: $component_id}]->(b)
+    MERGE (a)-[r:CONTROL_DEPENDENCY {component_id: $component_id, step_id: $step_id}]->(b)
     SET r.data_ids = 
         CASE 
             WHEN r.data_ids IS NULL THEN [$data_id]
@@ -133,7 +138,8 @@ def create_control_relationship(driver: Driver, from_internal_node_id: int, to_i
     """
     with driver.session() as session:
         result = session.run(query, from_internal_node_id=from_internal_node_id,
-                             to_internal_node_id=to_internal_node_id, component_id=clean_id, data_id=data_id)
+                             to_internal_node_id=to_internal_node_id, component_id=clean_id, 
+                             data_id=data_id, step_id=step_id)
         record = result.single()
         return record["id_1"], record["id_2"]
     

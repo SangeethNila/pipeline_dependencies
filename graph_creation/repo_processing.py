@@ -39,14 +39,12 @@ def process_repos(repo_list: list[str], driver: Driver) -> None:
             print(f'Processing: {entity["path"]}')
             is_workflow = get_is_workflow(entity)
             steps = None
-            if not is_workflow:
-                ensure_component_node(driver, entity['path'])
-            else:
+            if is_workflow:
                 steps = process_step_lookup(entity)
             process_cwl_inputs(driver, entity)
             process_cwl_outputs(driver, entity, steps)
             if steps:
-                process_cwl_steps(driver, entity, tool_paths, steps)
+                process_cwl_steps(driver, entity, steps)
             # elif entity['class'] == 'ExpressionTool':
             #     process_cwl_expression(driver, entity)
             # elif entity['class'] == 'CommandLineTool':

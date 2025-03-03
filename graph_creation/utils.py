@@ -2,7 +2,7 @@ from pathlib import Path
 from neo4j import Driver
 import re
 from graph_creation.cwl_parsing import get_cwl_from_repo
-from neo4j_dependency_queries.create_node_queries import ensure_in_parameter_node, ensure_out_parameter_node
+from neo4j_dependency_queries.create_node_queries import ensure_component_node, ensure_in_parameter_node, ensure_out_parameter_node
 from neo4j_dependency_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_in_param_relationship
 from neo4j_dependency_queries.processing_queries import get_all_in_parameter_nodes_of_entity
 
@@ -47,9 +47,10 @@ def process_in_param(driver: Driver, param_id: str, component_id: str, param_typ
 
     param_node = ensure_in_parameter_node(driver, param_id, component_id, param_type, entity_type)
     if entity_type != "Workflow":
+        ensure_component_node(driver, component_id)
         create_in_param_relationship(driver, component_id, param_node[0])
 
-def process_parameter_source(driver: Driver, param_node_internal_id: int, source_id: str, workflow_id: str, step_lookup: dict) -> None:
+def process_parameter_source(driver: Driver, param_node_internal_id: int, source_id: str, workflow_id: str, step_lookup: dict, step_id: str = "") -> None:
     """
     Processes a parameter source by creating a data relationship between a parameter node and its source.
 
@@ -67,7 +68,7 @@ def process_parameter_source(driver: Driver, param_node_internal_id: int, source
     source_param_node = get_source_node(driver, source_id, workflow_id, step_lookup)
 
     # Create a relationship between the parameter node and its source
-    create_data_relationship(driver, source_param_node, param_node_internal_id,workflow_id, source_id)
+    create_data_relationship(driver, source_param_node, param_node_internal_id,workflow_id, source_id, step_id)
 
 
 def get_source_node(driver: Driver, source_id: str, workflow_id: str, step_lookup: dict) -> None:
@@ -100,7 +101,7 @@ def get_source_node(driver: Driver, source_id: str, workflow_id: str, step_looku
         source_param_node = ensure_out_parameter_node(driver, source_parsed[1], sub_component_id)[0]
     return source_param_node
 
-def process_control_dependencies(driver: Driver, source_id: str, workflow_id: str, component_id: str, step_lookup: dict):
+def process_control_dependencies(driver: Driver, source_id: str, workflow_id: str, component_id: str, step_lookup: dict, step_id: str):
     """
     Processes control dependencies by creating control relationships between the given source and
     all in-parameters of the specified component.
@@ -120,7 +121,7 @@ def process_control_dependencies(driver: Driver, source_id: str, workflow_id: st
         in_parameters = get_all_in_parameter_nodes_of_entity(session, component_id)
         node_ids = [record["nodeId"] for record in in_parameters]
         for node_id in node_ids:
-            create_control_relationship(driver, node_id, source_param_node, workflow_id, source_id)
+            create_control_relationship(driver, node_id, source_param_node, workflow_id, source_id, step_id)
         
 
 def resolve_relative_path(path: Path)-> Path:

@@ -2,9 +2,8 @@ from pathlib import Path
 import re
 from neo4j import Driver
 from graph_creation.utils import extract_js_expression_dependencies, get_input_source, process_control_dependencies, process_in_param, process_parameter_source
-from neo4j_dependency_queries.create_node_queries import ensure_component_node, ensure_git_node, ensure_in_parameter_node, ensure_out_parameter_node
-from neo4j_dependency_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_out_param_relationship, create_references_relationship
-
+from neo4j_dependency_queries.create_node_queries import ensure_git_node, ensure_in_parameter_node, ensure_out_parameter_node
+from neo4j_dependency_queries.create_edge_queries import  create_out_param_relationship, create_references_relationship
 from neo4j_dependency_queries.utils import get_is_workflow
 
 def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
@@ -82,7 +81,7 @@ def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup) -> None:
                     for source_id in output['outputSource']:
                         process_parameter_source(driver, out_param_node_internal_id, source_id, component_id, step_lookup)
    
-def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], step_lookup) -> None:   
+def process_cwl_steps(driver: Driver, cwl_entity: dict, step_lookup) -> None:   
     """
     Processes the steps of a CWL entity, creating necessary nodes and relationships 
     for each step. The function handles the inputs, outputs, and control dependencies associated with each step 
@@ -120,30 +119,20 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
         # Get the resolved path of the step from the step_lookup
         step_path = step_lookup[step['id']]
 
-        is_tool = step_path in tool_paths
-
-        # Create the step component node if it's a tool
-        if step_path in tool_paths:
-            is_tool = True
-            s_node = ensure_component_node(driver, step_path)
-            s_node_internal_id = s_node[0]
-
         # Process the list of inputs of the step 
         for input in step['in']:
             # Create in-parameter node with ID as defined in the component and component ID equal to the path of the step
             param_node = ensure_in_parameter_node(driver, input['id'], step_path)
             param_node_internal_id = param_node[0]
-            if is_tool:
-                create_data_relationship(driver, param_node_internal_id, s_node_internal_id, step_path, input['id'])
 
             # Inputs can have one or multiple data sources (data nodes)
             if 'source' in input:
                 if isinstance(input['source'], str):
                     source_id = input['source']
-                    process_parameter_source(driver, param_node_internal_id, source_id, workflow_id, step_lookup)
+                    process_parameter_source(driver, param_node_internal_id, source_id, workflow_id, step_lookup, step['id'])
                 elif isinstance(input['source'], list):
                     for source_id in input['source']:
-                        process_parameter_source(driver, param_node_internal_id, source_id, workflow_id, step_lookup)
+                        process_parameter_source(driver, param_node_internal_id, source_id, workflow_id, step_lookup, step['id'])
 
         # Process the "when" field, aka control dependencies
         if 'when' in step:
@@ -158,25 +147,11 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, tool_paths: list[str], s
                 if source:
                     if isinstance(source, list):
                         for source_id in source:
-                            process_control_dependencies(driver, source_id, workflow_id, step_path, step_lookup)
+                            process_control_dependencies(driver, source_id, workflow_id, step_path, step_lookup, step['id'])
                     else:
-                        process_control_dependencies(driver, source, workflow_id, step_path, step_lookup)
+                        process_control_dependencies(driver, source, workflow_id, step_path, step_lookup, step['id'])
 
             control_relationships[step_path] = ()
-
-        # Process the list of outputs of the step
-        for output in step['out']:
-            # An output can be defined as a dictionary or simply as a string (ID only)
-            # Create out-parameter node with ID as defined in the component and component ID equal to the path of the step
-            if isinstance(output, dict):
-                output_id = output['id']
-            else:
-                output_id = output
-            param_node = ensure_out_parameter_node(driver, output_id, step_path)
-            param_node_internal_id = param_node[0]
-            if is_tool:
-                # Create a data edge from out-parameter node to the step component node
-                create_data_relationship(driver, s_node_internal_id, param_node_internal_id, step_path, output_id)
 
 
 def process_cwl_base_commands(driver, entity, links):
