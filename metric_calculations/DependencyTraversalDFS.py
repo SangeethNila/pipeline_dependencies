@@ -77,34 +77,34 @@ class DependencyTraversalDFS:
 
         for node_id in start_nodes:
             workflow_set = {start_component_id}
-            self._dfs_traverse_paths(session, node_id, workflow_set,deque([]), bookkeeping)
+            self._dfs_traverse_paths(session, node_id, workflow_set, deque([]), bookkeeping)
             
-    def _dfs_traverse_paths(self, session: Session, node_id: int, workflow_set: set, entity_queue: deque, bookkeeping: dict[str, list]):
+    def _dfs_traverse_paths(self, session: Session, node_id: int, workflow_set: set, component_stack: deque, bookkeeping: dict[str, list]):
         """Recursively performs DFS traversal and saves the subgraph."""
 
         component_id, current_node_labels, component_type = get_node_details(session, node_id)
 
         # If an InParameter node has a new component_id, enter this component
         if "InParameter" in current_node_labels:
-            entity_queue.append(component_id)
+            component_stack.append(component_id)
             if component_type == "Workflow":
                 workflow_set.add(component_id)
 
-        if not entity_queue:
+        if not component_stack:
             return
         
         # Exit component when an OutParameter is found
         if "OutParameter" in current_node_labels:
-            if component_id != entity_queue[-1]:
+            if component_id != component_stack[-1]:
                 raise ValueError("Something went wrong.")
-            entity_queue.pop()
+            component_stack.pop()
             if component_id in workflow_set:
                 workflow_set.remove(component_id)
 
-        if not entity_queue:
+        if not component_stack:
             return
         
-        current_list = list(entity_queue)
+        current_list = list(component_stack)
         if node_id in bookkeeping:
             for existing_list in bookkeeping[node_id]:
                 if len(existing_list) >= len(current_list):
@@ -118,7 +118,7 @@ class DependencyTraversalDFS:
 
         
         # Find valid connections
-        results = get_valid_connections(session, node_id, entity_queue[-1])
+        results = get_valid_connections(session, node_id, component_stack[-1])
         records = [ (record["relId"], record["nextNodeId"]) for record in results]
 
         for record in records:            
@@ -128,9 +128,9 @@ class DependencyTraversalDFS:
             next_node_id = record[1]
 
             update_workflow_list_of_edge(session, edge_id, sorted(list(edge_workflow_set)))
-            new_queue = copy.deepcopy(entity_queue)
+            new_component_stack = copy.deepcopy(component_stack)
             # Recursively continue DFS
-            self._dfs_traverse_paths(session, next_node_id, edge_workflow_set, new_queue, bookkeeping)
+            self._dfs_traverse_paths(session, next_node_id, edge_workflow_set, new_component_stack, bookkeeping)
 
     def traverse_graph_create_flows(self):
         with self.driver.session() as session:
