@@ -55,9 +55,8 @@ class DependencyTraversalDFS:
             outer_workflow_ids = sorted_components
             initiate_workflow_list(session)
             for workflow in outer_workflow_ids:
-                if workflow.startswith("example"):
-                    print(f"Preprocessing: {workflow}")
-                    self.traverse_graph_process_paths(session, workflow, bookkeeping)
+                print(f"Preprocessing: {workflow}")
+                self.traverse_graph_process_paths(session, workflow, bookkeeping)
             control_pairs = get_nodes_with_control_edges(session)
             for pair in control_pairs:
                 target_id = pair["targetId"]
@@ -89,6 +88,7 @@ class DependencyTraversalDFS:
         # If an InParameter node has a new component_id, enter this component
         if "InParameter" in current_node_labels:
             component_stack.append((component_id, component_type))
+            print(f"entering {component_id}")
 
         if not component_stack:
             return
@@ -105,15 +105,17 @@ class DependencyTraversalDFS:
         # Create list versions of the current component and step stacks
         current_cs = list(component_stack)
         current_ss = list(step_stack)
+        
         # Check if the current node has been encountered before
         if node_id in bookkeeping:
             # Iterate through previously stored paths that lead to this node
             for existing_cs, existing_ss in bookkeeping[node_id]:
+                
                 # Check if the existing path is longer or equal to the current one
                 if len(existing_cs) >= len(current_cs) and len(existing_ss) >= len(current_ss):
                     # Verify if the current path is already represented in the stored paths
                     # Either completely, or a subpath of a previous path
-                    if existing_cs[-len(current_cs):] == current_cs and existing_cs[-len(current_ss):] == current_ss:
+                    if existing_cs[-len(current_cs):] == current_cs and existing_ss[-len(current_ss):] == current_ss:
                         return # If so, exit early to avoid redundant computation
                 
             bookkeeping[node_id].append((current_cs, current_ss))
@@ -121,7 +123,6 @@ class DependencyTraversalDFS:
             # Initialize a new entry in the bookkeeping dictionary for this node
             bookkeeping[node_id] = list()
             bookkeeping[node_id].append((current_cs, current_ss))
-
         
         # Find valid connections
         results = list()
@@ -134,18 +135,21 @@ class DependencyTraversalDFS:
 
         records = [ (record["relId"], record["nextNodeId"], record["stepId"]) for record in results ]
 
-        for record in records:            
-            edge_id = record[0]
+        for record in records:      
+    
+            edge_id = record[0]   
+            next_node_id = record[1]         
             step_id = record[2]
+    
             edge_workflow_list = [tup[0] for tup in current_cs if tup[1] == "Workflow"]
-
-            next_node_id = record[1]
-
-            if step_id != "":
-                step_stack.append(step_id)
             update_workflow_list_of_edge(session, edge_id, edge_workflow_list)
+
             new_component_stack = copy.deepcopy(component_stack)
             new_step_stack = copy.deepcopy(step_stack)
+
+            if step_id != "":
+                new_step_stack.append(step_id)
+
             # Recursively continue DFS
             self._dfs_traverse_paths(session, next_node_id, new_component_stack, new_step_stack, bookkeeping)
 
