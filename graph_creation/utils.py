@@ -48,7 +48,7 @@ def process_in_param(driver: Driver, param_id: str, component_id: str, param_typ
     param_node = ensure_in_parameter_node(driver, param_id, component_id, param_type, component_type)
     if component_type != "Workflow":
         ensure_component_node(driver, component_id)
-        create_in_param_relationship(driver, component_id, param_node[0])
+        create_in_param_relationship(driver, component_id, param_node[0], param_node[1])
 
 def process_parameter_source(driver: Driver, param_node_internal_id: int, source_id: str, workflow_id: str, step_lookup: dict, step_id: str = "") -> None:
     """

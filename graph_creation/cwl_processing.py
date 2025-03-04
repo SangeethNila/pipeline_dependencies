@@ -68,7 +68,7 @@ def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup: dict) -> 
             # If it's not a workflow, create a relationship between the component and the output parameter
             is_worflow = get_is_workflow(cwl_entity)
             if not is_worflow:
-                create_out_param_relationship(driver, component_id, out_param_node_internal_id)
+                create_out_param_relationship(driver, component_id, out_param_node_internal_id, output['id'])
 
             # If the output has an 'outputSource', process the relationship(s) to the source(s)
             if 'outputSource' in output:
