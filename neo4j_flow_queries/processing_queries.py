@@ -22,7 +22,7 @@ def get_all_workflow_ids(session: Session):
     """Fetches all component_ids of CalculationComponent nodes."""
     query = """
     MATCH (c:CalculationComponent)
-    WHERE c.entity_type = "Workflow"
+    WHERE c.e = "Workflow"
     RETURN c.component_id AS component_id
     """
     result = session.run(query)

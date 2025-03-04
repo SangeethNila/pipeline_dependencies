@@ -2,16 +2,16 @@ import pathlib
 
 from neo4j import Session
 
-def create_calculation_component_node(session: Session, component_id: str, entity_type: str):
+def create_calculation_component_node(session: Session, component_id: str, component_type: str):
     """Creates a CalculationComponent node for a given component_id if it does not exist."""
     nice_id = pathlib.Path(component_id).stem
     query = """
     MERGE (cc:CalculationComponent {component_id: $component_id})
     SET cc.nice_id = $nice_id
-    SET cc.entity_type = $entity_type
+    SET cc.component_type = $component_type
     RETURN cc
     """
-    session.run(query, component_id=component_id, nice_id=nice_id, entity_type=entity_type)
+    session.run(query, component_id=component_id, nice_id=nice_id, component_type=component_type)
 
 def create_direct_flow(session: Session, from_component_id: str, to_component_id: str, 
                              workflow_id: str, data_ids: str, workflow_list: list):

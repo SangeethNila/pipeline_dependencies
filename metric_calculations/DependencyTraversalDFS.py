@@ -82,12 +82,12 @@ class DependencyTraversalDFS:
     def _dfs_traverse_paths(self, session: Session, node_id: int, workflow_set: set, entity_queue: deque, bookkeeping: dict[str, list]):
         """Recursively performs DFS traversal and saves the subgraph."""
 
-        component_id, current_node_labels, entity_type = get_node_details(session, node_id)
+        component_id, current_node_labels, component_type = get_node_details(session, node_id)
 
         # If an InParameter node has a new component_id, enter this component
         if "InParameter" in current_node_labels:
             entity_queue.append(component_id)
-            if entity_type == "Workflow":
+            if component_type == "Workflow":
                 workflow_set.add(component_id)
 
         if not entity_queue:
@@ -110,8 +110,8 @@ class DependencyTraversalDFS:
                 if len(existing_list) >= len(current_list):
                     if existing_list[-len(current_list):] == current_list:
                         return
-            else:
-                bookkeeping[node_id].append(current_list)
+                
+            bookkeeping[node_id].append(current_list)
         else:
             bookkeeping[node_id] = list()
             bookkeeping[node_id].append(current_list)
@@ -146,7 +146,7 @@ class DependencyTraversalDFS:
     def _dfs_traverse(self, session: Session, node_id: int, visited_nodes: set, entities: set):
         """Recursively performs DFS traversal and saves the subgraph."""
 
-        component_id, current_node_labels, entity_type, workflow_list = get_node_details(session, node_id)
+        component_id, current_node_labels, component_type, workflow_list = get_node_details(session, node_id)
         if node_id in visited_nodes:
             return
         print(f"visiting {node_id}")
@@ -155,7 +155,7 @@ class DependencyTraversalDFS:
         
         if component_id not in entities:
             entities.add(component_id)
-            create_calculation_component_node(session, component_id, entity_type)
+            create_calculation_component_node(session, component_id, component_type)
         
 
         # Find all connections
@@ -169,7 +169,7 @@ class DependencyTraversalDFS:
             next_node_id = record["nextNodeId"]
             next_component_id = record["nextComponentId"]
             next_node_labels = record["nextNodeLabels"]
-            next_entity_type = record["nextEntityType"]
+            next_component_type = record["nextEntityType"]
 
             if workflow_list:
                 workflow_list = list(workflow_list)
@@ -178,12 +178,12 @@ class DependencyTraversalDFS:
 
             if edge_component_id not in entities:
                 entities.add(component_id)
-                create_calculation_component_node(session, component_id, entity_type)
+                create_calculation_component_node(session, component_id, component_type)
 
 
             
             if "InParameter" in next_node_labels:
-                create_calculation_component_node(session, next_component_id, next_entity_type)
+                create_calculation_component_node(session, next_component_id, next_component_type)
                 create_direct_flow(session, edge_component_id, next_component_id, edge_component_id, data_ids, workflow_list)
                 create_indirect_flow(session, next_component_id, edge_component_id, edge_component_id, data_ids, workflow_list)
 

@@ -6,15 +6,15 @@ from neo4j_dependency_queries.utils import clean_component_id
 def get_node_details(session: Session, node_id):
     query = """
     MATCH (n) WHERE elementId(n) = $node_id
-    RETURN n.component_id AS component_id, labels(n) AS nodeLabels, n.entity_type AS entityType
+    RETURN n.component_id AS component_id, labels(n) AS nodeLabels, n.component_type AS componentType
     """
     result = session.run(query, node_id=node_id)
     record = result.single()
     component_id = record["component_id"]
     node_labels = record["nodeLabels"]
-    entity_type = record["entityType"]
+    component_type = record["componentType"]
 
-    return component_id, node_labels, entity_type
+    return component_id, node_labels, component_type
 
 def get_nodes_with_control_edges(session: Session):
     query = """
@@ -33,8 +33,8 @@ def get_valid_connections(session: Session, node_id: str, component_id: str):
     RETURN elementId(m) AS nextNodeId, elementId(r) AS relId, m.component_id AS nextComponentId, 
         labels(m) AS nodeLabels, type(r) AS relType, r.component_id AS relComponentId,
         r.data_ids AS dataIds,
-        CASE WHEN n.entity_type IS NOT NULL THEN n.entity_type ELSE null END AS entityType,
-        CASE WHEN m.entity_type IS NOT NULL THEN m.entity_type ELSE null END AS nextEntityType,
+        CASE WHEN n.component_type IS NOT NULL THEN n.component_type ELSE null END AS componentType,
+        CASE WHEN m.component_type IS NOT NULL THEN m.component_type ELSE null END AS nextEntityType,
         CASE WHEN r.workflow_list IS NOT NULL THEN r.workflow_list ELSE null END AS workflowList
     """
     results = session.run(query, node_id=node_id, component_id=component_id)
@@ -47,8 +47,8 @@ def get_all_outgoing_edges(session: Session, node_id):
     RETURN elementId(m) AS nextNodeId, elementId(r) AS relId, m.component_id AS nextComponentId, 
         labels(m) AS nextNodeLabels, type(r) AS relType, r.component_id AS relComponentId,
         r.data_ids AS dataIds,
-        CASE WHEN n.entity_type IS NOT NULL THEN n.entity_type ELSE null END AS entityType,
-        CASE WHEN m.entity_type IS NOT NULL THEN m.entity_type ELSE null END AS nextEntityType,
+        CASE WHEN n.component_type IS NOT NULL THEN n.component_type ELSE null END AS componentType,
+        CASE WHEN m.component_type IS NOT NULL THEN m.component_type ELSE null END AS nextEntityType,
         CASE WHEN r.workflow_list IS NOT NULL THEN r.workflow_list ELSE null END AS workflowList
     """
     results = session.run(query, node_id=node_id)
@@ -82,7 +82,7 @@ def instantiate_workflow_list(session: Session):
 
 def get_all_workflow_ids(session: Session):
     query = """MATCH (n:InParameter)
-        WHERE n.entity_type = "Workflow"
+        WHERE n.component_type = "Workflow"
         RETURN COLLECT(DISTINCT n.component_id) AS unique_component_ids;
         """
     result = session.run(query)
@@ -92,7 +92,7 @@ def get_all_workflow_ids(session: Session):
 def get_all_out_parameter_nodes_of_entity(session: Session, component_id: str):
     query = """
             MATCH (n:OutParameter {component_id: $component_id})
-            RETURN elementId(n) AS nodeId, n.entity_type AS entityType
+            RETURN elementId(n) AS nodeId, n.component_type AS componentType
             """
     result = session.run(query, component_id=component_id)
     return result
@@ -101,7 +101,7 @@ def get_all_in_parameter_nodes_of_entity(session: Session, component_id: str):
     clean_id = clean_component_id(component_id)
     query = """
             MATCH (n:InParameter {component_id: $component_id})
-            RETURN elementId(n) AS nodeId, n.entity_type AS entityType
+            RETURN elementId(n) AS nodeId, n.component_type AS componentType
             """
     result = session.run(query, component_id=clean_id)
     return result
