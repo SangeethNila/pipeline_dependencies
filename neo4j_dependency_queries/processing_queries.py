@@ -142,3 +142,12 @@ def get_all_outer_out_parameter_nodes(session: Session):
             """
     result = session.run(query)
     return result
+
+def get_data_flow_relationships_for_sorting(session: Session):
+    query = """
+    MATCH (a:InParameter)-[:DATA_FLOW]->(b:InParameter)
+    RETURN a.component_id AS componentA, b.component_id AS componentB
+    """
+    result = session.run(query)
+    edges = [(record['componentA'], record['componentB']) for record in result]
+    return edges
