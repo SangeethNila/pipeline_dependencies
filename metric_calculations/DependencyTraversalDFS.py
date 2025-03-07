@@ -1,6 +1,6 @@
 from neo4j import Driver, GraphDatabase, Session
 from collections import deque
-import pprint
+import json
 import copy
 import networkx as nx
 from metric_calculations.utils import append_paths_entry, current_stack_structure_processed
@@ -148,11 +148,10 @@ class DependencyTraversalDFS:
                 print("Topologically Sorted Component IDs:", sorted_components)
             workflow_ids = sorted_components
             for workflow in workflow_ids:
-                if 'example' in workflow:
-                    print(f"Preprocessing: {workflow}")
-                    self.traverse_graph_change_impact(session, workflow, bookkeeping, paths)
-
-            pprint.pprint(paths)
+                print(f"Preprocessing: {workflow}")
+                self.traverse_graph_change_impact(session, workflow, bookkeeping, paths)
+            with open("flow_paths.json", "w") as json_file:
+                json.dump(paths, json_file, indent=4)
 
     def traverse_graph_change_impact(self, session: Session, component_id: str, bookkeeping: dict, paths: dict):
         """
@@ -175,7 +174,6 @@ class DependencyTraversalDFS:
                 for outer_component_id in outer_workflows:
                     if depth_seen > last_seen[outer_component_id]:
                         append_paths_entry(seen_id, component_id, tuple([outer_component_id, distance]), paths)
-                        print(f"added path from {seen_id} to {component_id} with distance {distance} (sequential flows)")
 
     def process_direct_indirect_flow_of_node_id(self, node_id, component_id, outer_workflows, component_stack, step_stack, bookkeeping, paths):
         """
@@ -214,7 +212,6 @@ class DependencyTraversalDFS:
                 entry = tuple([outer_component_id, 1])
                 append_paths_entry(component_id, outer_component_id, entry, paths)
                 append_paths_entry(outer_component_id, component_id, entry, paths)
-                print(f"added path from {component_id} to {outer_component_id} and viceversa with distance 1 in {outer_component_id}(direct and indirect flows)")
                
     def _dfs_traverse_paths_change_impact(self, session: Session, node_id: int, component_stack: deque, step_stack: deque, 
                             last_seen: dict[str, int], depth: int, paths: dict[str, dict[str, list]], 
