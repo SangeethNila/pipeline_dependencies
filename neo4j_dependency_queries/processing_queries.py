@@ -134,6 +134,14 @@ def get_all_in_parameter_nodes_of_entity(session: Session, component_id: str):
     result = session.run(query, component_id=clean_id)
     return result
 
+def get_all_component_ids(session: Session):
+    query = """
+            MATCH (n:InParameter)
+            RETURN collect(distinct n.component_id) AS component_ids
+            """
+    result = session.run(query)
+    return result.single()["component_ids"]
+
 def get_all_outer_out_parameter_nodes(session: Session):
     query = """
             MATCH (n:OutParameter)
