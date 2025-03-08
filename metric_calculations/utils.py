@@ -1,3 +1,7 @@
+from neo4j import Session
+from neo4j_dependency_queries.processing_queries import get_data_flow_relationships_for_sorting
+import networkx as nx
+
 def append_paths_entry(id1: str, id2: str, entry: tuple[str, int], paths: dict[str, dict[str, list]]) -> None:
     """
     Adds an entry to the paths dictionary, ensuring necessary keys exist.
@@ -48,3 +52,19 @@ def current_stack_structure_processed(bookkeeping, node_id, current_cs, current_
         if is_substack(current_cs, existing_cs) and is_substack(current_ss, existing_ss):
             return True
     return False
+
+# Build a directed graph and perform a topological sort
+def perform_topological_sort(session: Session):
+    # Get the edges (relationships) from Neo4j
+    edges = get_data_flow_relationships_for_sorting(session)
+
+    # Create a directed graph
+    G = nx.DiGraph()
+    G.add_edges_from(edges)
+
+    # Perform topological sort
+    try:
+        sorted_components = list(nx.topological_sort(G))
+        return sorted_components
+    except nx.NetworkXUnfeasible:
+        raise Exception("The graph is not a DAG (Directed Acyclic Graph), so a topological sort is not possible.")
