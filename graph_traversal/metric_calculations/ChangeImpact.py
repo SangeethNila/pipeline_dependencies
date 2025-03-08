@@ -33,7 +33,7 @@ class ChangeImpact:
 
             for component_id_2 in sorted_component_ids:
 
-                if component_id_1 > component_id_2: continue
+                if component_id_1 >= component_id_2: continue
                 if not self.have_same_prefix(component_id_1, component_id_2): continue
 
                 paths_from_1 = component_id_1 in paths
