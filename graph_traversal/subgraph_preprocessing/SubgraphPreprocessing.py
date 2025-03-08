@@ -1,11 +1,11 @@
 from neo4j import Driver, GraphDatabase, Session
 from collections import deque
 import copy
-from metric_calculations.utils import current_stack_structure_processed, perform_topological_sort
+from graph_traversal.utils import current_stack_structure_processed, perform_topological_sort
 from neo4j_graph_queries.processing_queries import get_all_in_parameter_nodes_of_entity, get_node_details, get_nodes_with_control_edges, get_valid_connections, get_workflow_list_of_data_edges_from_node, initiate_workflow_list, update_workflow_list_of_edge
 from neo4j_graph_queries.utils import clean_component_id
 
-class DependencyTraversalDFS:
+class SubgraphPreprocessing:
     """Class to perform DFS traversal and save the resulting subgraph."""
 
     def __init__(self, uri, auth):

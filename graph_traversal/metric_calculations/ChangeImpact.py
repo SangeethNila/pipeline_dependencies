@@ -1,7 +1,6 @@
-import copy
 from neo4j import Driver, GraphDatabase
 import pandas as pd
-from neo4j_dependency_queries.processing_queries import get_all_component_ids
+from neo4j_graph_queries.processing_queries import get_all_component_ids
 from collections import Counter
 
 
@@ -31,7 +30,6 @@ class ChangeImpact:
         matrix = pd.DataFrame(-1.0, index=sorted_component_ids, columns=sorted_component_ids)
 
         for component_id_1 in sorted_component_ids:
-
 
             for component_id_2 in sorted_component_ids:
 

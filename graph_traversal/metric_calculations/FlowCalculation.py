@@ -2,9 +2,9 @@ from neo4j import Driver, GraphDatabase, Session
 from collections import deque
 import json
 import copy
-from metric_calculations.utils import append_paths_entry, current_stack_structure_processed, perform_topological_sort
-from neo4j_dependency_queries.processing_queries import get_all_in_parameter_nodes_of_entity, get_node_details, get_valid_connections
-from neo4j_dependency_queries.utils import clean_component_id
+from graph_traversal.utils import append_paths_entry, current_stack_structure_processed, perform_topological_sort
+from neo4j_graph_queries.processing_queries import get_all_in_parameter_nodes_of_entity, get_node_details, get_valid_connections
+from neo4j_graph_queries.utils import clean_component_id
 
 class FlowCalculation:
     """
