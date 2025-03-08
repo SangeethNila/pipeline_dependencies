@@ -1,5 +1,5 @@
 from neo4j import Session
-from neo4j_dependency_queries.processing_queries import get_data_flow_relationships_for_sorting
+from neo4j_graph_queries.processing_queries import get_data_flow_relationships_for_sorting
 import networkx as nx
 
 def append_paths_entry(id1: str, id2: str, entry: tuple[str, int], paths: dict[str, dict[str, list]]) -> None:

@@ -4,7 +4,7 @@ from collections import defaultdict
 import pandas as pd
 
 from graph_creation.utils import resolve_relative_path
-from neo4j_dependency_queries.utils import clean_component_id
+from neo4j_graph_queries.utils import clean_component_id
 
 def get_cwl_change_history(repo_path):
     """

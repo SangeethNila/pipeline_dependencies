@@ -2,9 +2,9 @@ from pathlib import Path
 import re
 from neo4j import Driver
 from graph_creation.utils import extract_js_expression_dependencies, get_input_source, process_control_dependencies, process_in_param, process_parameter_source
-from neo4j_dependency_queries.create_node_queries import ensure_git_node, ensure_in_parameter_node, ensure_out_parameter_node
-from neo4j_dependency_queries.create_edge_queries import  create_out_param_relationship, create_references_relationship
-from neo4j_dependency_queries.utils import get_is_workflow
+from neo4j_graph_queries.create_node_queries import ensure_git_node, ensure_in_parameter_node, ensure_out_parameter_node
+from neo4j_graph_queries.create_edge_queries import  create_out_param_relationship, create_references_relationship
+from neo4j_graph_queries.utils import get_is_workflow
 
 def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
     """

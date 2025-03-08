@@ -1,6 +1,6 @@
 from neo4j import Driver
-from neo4j_dependency_queries.create_node_queries import ensure_component_node
-from neo4j_dependency_queries.utils import clean_component_id
+from neo4j_graph_queries.create_node_queries import ensure_component_node
+from neo4j_graph_queries.utils import clean_component_id
 
 def create_in_param_relationship(driver: Driver, prefixed_component_id: str, parameter_internal_id: int, parameter_id: str) -> tuple[str,str]:
     """

@@ -1,10 +1,9 @@
 from pathlib import Path
 from neo4j import Driver
 import re
-from graph_creation.cwl_parsing import get_cwl_from_repo
-from neo4j_dependency_queries.create_node_queries import ensure_component_node, ensure_in_parameter_node, ensure_out_parameter_node
-from neo4j_dependency_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_in_param_relationship
-from neo4j_dependency_queries.processing_queries import get_all_in_parameter_nodes_of_entity
+from neo4j_graph_queries.create_node_queries import ensure_component_node, ensure_in_parameter_node, ensure_out_parameter_node
+from neo4j_graph_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_in_param_relationship
+from neo4j_graph_queries.processing_queries import get_all_in_parameter_nodes_of_entity
 
 GITLAB_ASTRON ='https://git.astron.nl'
 

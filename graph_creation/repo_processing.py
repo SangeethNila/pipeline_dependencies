@@ -3,7 +3,7 @@ from graph_creation.cwl_parsing import get_cwl_from_repo
 from graph_creation.docker_parsing import parse_all_dockerfiles
 from graph_creation.utils import process_step_lookup
 from graph_creation.cwl_processing import process_cwl_commandline, process_cwl_inputs, process_cwl_outputs, process_cwl_steps
-from neo4j_dependency_queries.utils import get_is_workflow
+from neo4j_graph_queries.utils import get_is_workflow
 
 def process_repos(repo_list: list[str], driver: Driver) -> None:
     """

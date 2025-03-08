@@ -1,6 +1,6 @@
 from neo4j import Session
 
-from neo4j_dependency_queries.utils import clean_component_id
+from neo4j_graph_queries.utils import clean_component_id
 
 
 def get_node_details(session: Session, node_id: str):
