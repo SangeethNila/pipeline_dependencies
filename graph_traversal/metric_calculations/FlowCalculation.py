@@ -35,22 +35,22 @@ class FlowCalculation:
         This method performs a topological sort of components, then traverses the graph  
         to compute flow paths, storing the results in a JSON file (`flow_paths.json`).  
 
-        ### **Data Structures:**
+        ### Data Structures:
         - **`paths: dict[str, dict[str, list]]`**  
-        - A nested dictionary where:
-            - The first key (`str`) represents the source component ID.
-            - The second key (`str`) represents the target component ID.
-            - The value (`list`) contains all possible paths from the source to the target.  
-        - This dictionary is converted into the JSON file
+            - A nested dictionary where:
+                - The first key (`str`) represents the source component ID.
+                - The second key (`str`) represents the target component ID.
+                - The value (`list`) contains all possible paths from the source to the target.  
+            - This dictionary is converted into the JSON file
 
         - **`bookkeeping: dict[int, list[tuple[list, list]]]`**  
-        - A dictionary where:
-            - The key (`int`) is the **Neo4j internal node ID**.
-            - The value (`list[tuple[list, list]]`) stores tuples of:
-            - **`component_stack (list)`**: The workflows being traversed when the node was encountered.  
-                - The **leftmost element** is the **outermost workflow**.  
-            - **`step_stack (list)`**: The workflow steps being traversed when the node was encountered.    
-        - This dictionary is used to avoid redundant calculations
+            - A dictionary where:
+                - The key (`int`) is the **Neo4j internal node ID**.
+                - The value (`list[tuple[list, list]]`) stores tuples of:
+                - **`component_stack (list)`**: The workflows being traversed when the node was encountered.  
+                    - The **leftmost element** is the **outermost workflow**.  
+                - **`step_stack (list)`**: The workflow steps being traversed when the node was encountered.    
+            - This dictionary is used to avoid redundant calculations
         """
         with self.driver.session() as session:
             # Perform topological sorting to determine traversal order
@@ -74,30 +74,18 @@ class FlowCalculation:
         the specified `component_id`, detecting both direct, indirect, and sequential data flows
         between each component encountered.  
 
-        ### **Parameters:**
-        - `session (Session)`: The active Neo4j session used for querying the database.  
-        - `component_id (str)`: The identifier of the component from which traversal begins.  
-        - `bookkeeping (dict)`: A dictionary that tracks visited nodes and their  
-        traversal states to prevent redundant processing to avoid redundant computation.  
-        - `paths (dict[str, dict[str, list]]]`:
-            - A nested dictionary storing discovered data flow paths.
-            - Format: `paths[source_id][target_id] = list_of_paths`.  
+        It does so by calling `_dfs_traverse_paths_change_impact` for each starting node, with 
+        - empty deques for `component_stack` (components currently being traversed) and `step_stack` (workflow steps currently being traversed).  
+        - a depth counter (`depth = 0`) and an empty dictionary for tracking the depths of encountered components within this traversal.
 
-        ### **Execution Steps:**
-        1. **Sanitize `component_id`**:  
-        - Calls `clean_component_id(component_id)` to standardize the ID format
-            (removes local repos folder name).  
-
-        2. **Retrieve Starting Nodes**:  
-        - Queries Neo4j to find all "InParameter" nodes linked to the component.  
-        - Extracts their internal Neo4j IDs into `start_nodes`.  
-
-        3. **Initiate DFS Traversal**:  
-        - Calls `_dfs_traverse_paths_change_impact` for each starting node.  
-        - Initializes empty deques for `component_stack` (components currently being traversed)  
-            and `step_stack` (workflow steps currently being traversed).  
-        - Uses a depth counter (`depth = 0`) and an empty dictionary for  
-            tracking the depths of encountered components within this traversal.  
+        Parameters:
+            session (Session): The active Neo4j session used for querying the database.  
+            component_id (str): The identifier of the component from which traversal begins.  
+            bookkeeping (dict): A dictionary that tracks visited nodes and their  
+                traversal states to prevent redundant processing to avoid redundant computation.  
+            paths (dict[str, dict[str, list] ]):
+                - A nested dictionary storing discovered data flow paths.
+                - Format: `paths[source_id][target_id] = list_of_paths`.  
         """
         start_component_id = clean_component_id(component_id)
         
@@ -121,19 +109,19 @@ class FlowCalculation:
         `paths` dictionary while ensuring previously processed paths are not re-evaluated  
         using `bookkeeping`.
 
-        ### **Parameters:**
-        - `session (Session)`: The active Neo4j session for querying the database.  
-        - `node_id (int)`: The Neo4j internal ID of the current node being processed.  
-        - `component_stack (deque)`: A stack tracking the components currently being traversed.  
-        - `step_stack (deque)`: A stack tracking workflow steps currently being traveresed.  
-        - `last_seen (dict[str, int])`: Maps component IDs to the last depth they were encountered at.  
-        - `depth (int)`: The current depth level in the DFS traversal.  
-        - `paths (dict[str, dict[str, list]])`:  
-            - A nested dictionary storing discovered flow paths.  
-            - Format: `paths[source_id][target_id] = list_of_paths`.  
-            - `bookkeeping (dict[str, list[tuple[list, list]]])`:  
-            - Tracks previously visited nodes to prevent redundant computations.  
-            - Keys are **node IDs**, values are **tuples of (component_stack, step_stack)** states.
+        Parameters:
+            session (Session): The active Neo4j session for querying the database.  
+            node_id (int): The Neo4j internal ID of the current node being processed.  
+            component_stack (deque): A stack tracking the components currently being traversed.  
+            step_stack (deque): A stack tracking workflow steps currently being traveresed.  
+            last_seen (dict[str, int]): Maps component IDs to the last depth they were encountered at.  
+            depth (int): The current depth level in the DFS traversal.  
+            paths (dict[str, dict[str, list]]):  
+                - A nested dictionary storing discovered flow paths.  
+                - Format: `paths[source_id][target_id] = list_of_paths`.  
+            bookkeeping (dict[str, list[tuple[list, list]]]):  
+                - Tracks previously visited nodes to prevent redundant computations.  
+                - Keys are **node IDs**, values are **tuples of (component_stack, step_stack)** states.
         """
 
         component_id, current_node_labels, component_type = get_node_details(session, str(node_id))
