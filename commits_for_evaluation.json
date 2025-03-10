@@ -15,16 +15,6 @@
         ]
     },
     {
-        "id": "d9ab5e7ae0c1729295fdebc183a07178eb7ae7ae",
-        "changed_files": [
-            "steps/check_unflagged_fraction.cwl",
-            "steps/dp3_make_parset_cal.cwl",
-            "steps/dp3_make_parset_target.cwl",
-            "steps/gaincal.cwl",
-            "workflows/linc_target/selfcal_targ_lba.cwl"
-        ]
-    },
-    {
         "id": "702feb6e9f6adf5660bcf4f4931995a182992e35",
         "changed_files": [
             "docs/source/target.rst",
@@ -51,39 +41,6 @@
         ]
     },
     {
-        "id": "a363527f140d02ad3bf77afea8688cf4f248e1c7",
-        "changed_files": [
-            "Docker/Dockerfile-base",
-            "setup.py",
-            "steps/LoSoTo.ClockTec.cwl",
-            "steps/LoSoTo.Duplicate.cwl",
-            "steps/LoSoTo.Faraday.cwl",
-            "steps/LoSoTo.Flag.cwl",
-            "steps/LoSoTo.FlagStation.cwl",
-            "steps/LoSoTo.Flagextend.cwl",
-            "steps/LoSoTo.Interpolate.cwl",
-            "steps/LoSoTo.Norm.cwl",
-            "steps/LoSoTo.Polalign.cwl",
-            "steps/LoSoTo.Replicate.cwl",
-            "steps/LoSoTo.Reset.cwl",
-            "steps/LoSoTo.Residual.cwl",
-            "steps/LoSoTo.Reweight.cwl",
-            "steps/LoSoTo.Structure.cwl"
-        ]
-    },
-    {
-        "id": "0f66ead584537fc36a15003b0f977e11241910c7",
-        "changed_files": [
-            "docs/source/calibrator.rst",
-            "docs/source/parset.rst",
-            "steps/identify_bad_antennas.cwl",
-            "workflows/HBA_calibrator.cwl",
-            "workflows/linc_calibrator.cwl",
-            "workflows/linc_calibrator/bandpass.cwl",
-            "workflows/linc_calibrator/bp.cwl"
-        ]
-    },
-    {
         "id": "10057b67c18f23607e3166504b3aa8ff428be5ae",
         "changed_files": [
             "workflows/linc_target/selfcal_targ_hba.cwl"
@@ -97,17 +54,6 @@
         ]
     },
     {
-        "id": "1974bf3f169ab744b74ebead93bfb25ad2591638",
-        "changed_files": [
-            ".gitlab-ci.yml",
-            "Docker/Dockerfile-base",
-            "setup.py",
-            "steps/LoSoTo.Duplicate.cwl",
-            "steps/gaincal.cwl",
-            "workflows/linc_target/finalize.cwl"
-        ]
-    },
-    {
         "id": "8920774a02b0e7f0a843d32e69be5c844ea192aa",
         "changed_files": [
             "docs/source/target.rst",
@@ -116,55 +62,6 @@
             "workflows/linc_target/finalize.cwl",
             "workflows/linc_target/gsmcal.cwl",
             "workflows/linc_target/selfcal_targ_hba.cwl"
-        ]
-    },
-    {
-        "id": "ee4d0e271b4af9297526957065995e4d72df8222",
-        "changed_files": [
-            "docs/source/calibrator.rst",
-            "docs/source/parset.rst",
-            "steps/LoSoTo.Faraday.cwl",
-            "steps/LoSoTo.Plot.cwl",
-            "steps/LoSoTo.Reset.cwl",
-            "steps/compare_station_list.cwl",
-            "steps/ddecal.cwl",
-            "steps/ddecal_array.cwl",
-            "steps/dp3concat.cwl",
-            "workflows/HBA_calibrator.cwl",
-            "workflows/LBA_calibrator.cwl",
-            "workflows/linc_calibrator.cwl",
-            "workflows/linc_calibrator/apply_calibrate_bp.cwl",
-            "workflows/linc_calibrator/apply_calibrate_fr.cwl",
-            "workflows/linc_calibrator/apply_pa.cwl",
-            "workflows/linc_calibrator/faraday_rotation.cwl",
-            "workflows/linc_calibrator/fr.cwl",
-            "workflows/linc_calibrator/pa.cwl",
-            "workflows/linc_calibrator/predict_calibrate.cwl",
-            "workflows/linc_calibrator/prep.cwl",
-            "workflows/linc_calibrator/prep_fr.cwl",
-            "workflows/linc_target/apply_calibrate_tec.cwl",
-            "workflows/linc_target/calib_targ.cwl",
-            "workflows/linc_target/fr.cwl",
-            "workflows/linc_target/predict_calibrate_fr.cwl",
-            "workflows/linc_target/selfcal_targ_lba.cwl"
-        ]
-    },
-    {
-        "id": "117380684ed061119c19ace04dacba3d2eef052f",
-        "changed_files": [
-            ".gitlab-ci.yml",
-            "Docker/Dockerfile-base",
-            "docs/source/installation.rst",
-            "scripts/download_skymodel_target.py",
-            "setup.py",
-            "steps/check_demix.cwl",
-            "steps/filter_ms_group.cwl",
-            "test_jobs/LBA_calibrator.json",
-            "test_jobs/LBA_target.json",
-            "test_jobs/check_workflow_results.py",
-            "workflows/HBA_target.cwl",
-            "workflows/LBA_target.cwl",
-            "workflows/linc_target/prep.cwl"
         ]
     },
     {
@@ -196,12 +93,6 @@
             "workflows/linc_calibrator/pa.cwl",
             "workflows/linc_calibrator/predict_calibrate.cwl",
             "workflows/linc_calibrator/prep.cwl"
-        ]
-    },
-    {
-        "id": "7f12c1cebd47c61f7a49e949ee6bbe50fc28a8b3",
-        "changed_files": [
-            "steps/ddecal.cwl"
         ]
     },
     {
@@ -242,14 +133,6 @@
         "changed_files": [
             "workflows/linc_calibrator/faraday_rotation.cwl",
             "workflows/linc_target/fr.cwl"
-        ]
-    },
-    {
-        "id": "f20fec66b4e5416383ec92e7d77b756b56cd57e9",
-        "changed_files": [
-            "scripts/download_skymodel_target.py",
-            "steps/check_demix.cwl",
-            "workflows/linc_target/prep.cwl"
         ]
     },
     {
@@ -391,27 +274,6 @@
             "workflows/linc_target/fr.cwl",
             "workflows/linc_target/predict_calibrate_fr.cwl",
             "workflows/linc_target/selfcal_targ_lba.cwl"
-        ]
-    },
-    {
-        "id": "e93304423bf29d393cee120d3a214aa1c35a35ef",
-        "changed_files": [
-            ".gitlab-ci.yml",
-            ".readthedocs.yaml",
-            "Docker/Dockerfile-base",
-            "docs/source/conf.py",
-            "docs/source/installation.rst",
-            "docs/source/target.rst",
-            "setup.py",
-            "steps/ddecal.cwl",
-            "test_jobs/LBA_calibrator.json",
-            "test_jobs/LBA_target.json",
-            "test_jobs/check_workflow_results.py",
-            "workflows/HBA_target.cwl",
-            "workflows/LBA_target.cwl",
-            "workflows/linc_calibrator.cwl",
-            "workflows/linc_calibrator/pa.cwl",
-            "workflows/linc_target.cwl"
         ]
     },
     {

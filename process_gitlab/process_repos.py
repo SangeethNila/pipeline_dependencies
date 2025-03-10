@@ -36,6 +36,13 @@ def save_commit_history_for_evaluation():
     commits = merge_request.commits()
     commit_data = []
     for commit in commits:
+        
+        # Skip merge commits or conflict resolves
+        commit_message = str(commit.message).lower()
+        if "merge" in commit_message:
+            if "branch" in commit_message or "conflict" in commit_message:
+                continue
+
         commit_details = project.commits.get(commit.id)
         commit_entry = {
             "id": commit.id,
