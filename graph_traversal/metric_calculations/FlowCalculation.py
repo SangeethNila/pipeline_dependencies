@@ -1,3 +1,4 @@
+import pprint
 from neo4j import Driver, GraphDatabase, Session
 from collections import deque
 import json
@@ -5,6 +6,7 @@ import copy
 from graph_traversal.utils import append_paths_entry, current_stack_structure_processed, perform_topological_sort
 from neo4j_graph_queries.processing_queries import get_all_in_parameter_nodes_of_entity, get_node_details, get_valid_connections
 from neo4j_graph_queries.utils import clean_component_id
+from queue import Queue
 
 class FlowCalculation:
     """
@@ -60,149 +62,11 @@ class FlowCalculation:
             paths: dict[str, dict[str, list]] = {}
             workflow_ids = sorted_components
             for workflow in workflow_ids:
-                print(f"Preprocessing: {workflow}")
-                self.traverse_graph_change_impact(session, workflow, bookkeeping, paths)
+                if "example" not in workflow:
+                    print(f"Preprocessing: {workflow}")
+                    self.bsf_traverse_paths_change_impact(session, workflow, bookkeeping, paths)
             with open("flow_paths.json", "w") as json_file:
                 json.dump(paths, json_file, indent=4)
-
-    def traverse_graph_change_impact(self, session: Session, component_id: str, bookkeeping: dict, paths: dict[str, dict[str, list]]):
-        """
-        Performs a depth-first search (DFS) traversal to identify data flow paths  
-        between components and updates the `paths` dictionary accordingly.
-
-        This method initiates traversal from all "InParameter" nodes associated with  
-        the specified `component_id`, detecting both direct, indirect, and sequential data flows
-        between each component encountered.  
-
-        It does so by calling `_dfs_traverse_paths_change_impact` for each starting node, with 
-        - empty deques for `component_stack` (components currently being traversed) and `step_stack` (workflow steps currently being traversed).  
-        - a depth counter (`depth = 0`) and an empty dictionary for tracking the depths of encountered components within this traversal.
-
-        Parameters:
-            session (Session): The active Neo4j session used for querying the database.  
-            component_id (str): The identifier of the component from which traversal begins.  
-            bookkeeping (dict): A dictionary that tracks visited nodes and their  
-                traversal states to prevent redundant processing to avoid redundant computation.  
-            paths (dict[str, dict[str, list] ]):
-                - A nested dictionary storing discovered data flow paths.
-                - Format: `paths[source_id][target_id] = list_of_paths`.  
-        """
-        start_component_id = clean_component_id(component_id)
-        
-        # Find all "InParameter" nodes associated with the component
-        result = get_all_in_parameter_nodes_of_entity(session, start_component_id)
-        start_nodes = [record["nodeId"] for record in result]
-
-        # Perform DFS traversal for each starting node
-        for node_id in start_nodes:
-            self._dfs_traverse_paths_change_impact(session, node_id, deque([]), deque([]), dict(), 0, paths, bookkeeping)
-
-    def _dfs_traverse_paths_change_impact(self, session: Session, node_id: int, component_stack: deque, step_stack: deque, 
-                            last_seen: dict[str, int], depth: int, paths: dict[str, dict[str, list]], 
-                            bookkeeping: dict[str, list[tuple[list, list]]]):
-        """
-        Recursively performs a depth-first search (DFS) to explore data paths and track  
-        direct, indirect, and sequential data flows between components.  
-
-        This method processes traversal by maintaining **component_stack** and **step_stack**,  
-        which track the outer components and workflow steps being traversed, respectively. It updates the  
-        `paths` dictionary while ensuring previously processed paths are not re-evaluated  
-        using `bookkeeping`.
-
-        Parameters:
-            session (Session): The active Neo4j session for querying the database.  
-            node_id (int): The Neo4j internal ID of the current node being processed.  
-            component_stack (deque): A stack tracking the components currently being traversed.  
-            step_stack (deque): A stack tracking workflow steps currently being traveresed.  
-            last_seen (dict[str, int]): Maps component IDs to the last depth they were encountered at.  
-            depth (int): The current depth level in the DFS traversal.  
-            paths (dict[str, dict[str, list]]):  
-                - A nested dictionary storing discovered flow paths.  
-                - Format: `paths[source_id][target_id] = list_of_paths`.  
-            bookkeeping (dict[str, list[tuple[list, list]]]):  
-                - Tracks previously visited nodes to prevent redundant computations.  
-                - Keys are **node IDs**, values are **tuples of (component_stack, step_stack)** states.
-        """
-
-        component_id, current_node_labels, component_type = get_node_details(session, str(node_id))
-
-        # If an InParameter node has a new component_id, enter this component
-        if "InParameter" in current_node_labels:
-            component_stack.append((component_id, component_type))
-            print(f"entering {component_id}")
-
-            # The first In-Parameter belongs to the outer workflow and gets depth 0
-            last_seen[component_id] = depth
-
-            # Extract list of outer workflows (leftmost = outermost)
-            outer_workflows = [workflow[0] for workflow in component_stack if workflow[1] == "Workflow"]
-            # Process sequential and direct/indirect flows
-            self.process_sequential_flows_to_component(component_id, depth, last_seen, outer_workflows, paths)
-            self.process_direct_indirect_flow_of_node_id(node_id, component_id, outer_workflows, component_stack, step_stack, bookkeeping, paths)
-            
-            # Increment depth as we move deeper into the traversal
-            depth = depth + 1
-        
-        # If the stack is empty, return early
-        if not component_stack: return
-        
-        # Exit component when an OutParameter is found
-        if "OutParameter" in current_node_labels:
-            component_stack.pop()
-            if component_type == "Workflow":
-                # When we exit a workflow, the workflow needs to be at 
-                # the same depth as its last step
-                last_seen[component_id] = depth - 1 
-
-        # If the stack is empty after popping, return early
-        if not component_stack: return
-
-        # Convert current stacks into list representations for bookkeeping
-        current_cs = list(component_stack)
-        current_ss = list(step_stack)
-        
-        # Check if the current node has been encountered before
-        if node_id in bookkeeping:
-            # If the (sub)path structure has already been processed under the same conditions, exit early
-            if current_stack_structure_processed(bookkeeping, node_id, current_cs, current_ss):
-                return
-            # Otherwise, update bookkeeping with the new state
-            bookkeeping[node_id].append((current_cs, current_ss))
-        else:
-            # Initialize a new entry in bookkeeping for this node
-            bookkeeping[node_id] = [(current_cs, current_ss)]
-        
-        # Find valid connections based on component type
-        results = list()
-        if component_stack[-1][1] == "Workflow" and step_stack and "InParameter" not in current_node_labels:
-            # If inside a workflow and transitioning between steps, use both the top componet_id and top step_id in the stacks
-            results = get_valid_connections(session, node_id, component_stack[-1][0], step_stack[-1])
-            step_stack.pop()
-        else:
-            # Otherwise, retrieve valid connections only based on the top component_id in the component_stack
-            results = get_valid_connections(session, node_id, component_stack[-1][0])
-
-        # Extract next node IDs and step IDs from query results
-        records = [ (record["nextNodeId"], record["stepId"]) for record in results ]
-
-        # Recursively process each valid connection
-        for record in records:      
-            next_node_id = record[0]         
-            step_id = record[1]
-
-             # Create deep copies to ensure traversal states are independent
-            new_component_stack = copy.deepcopy(component_stack)
-            new_step_stack = copy.deepcopy(step_stack)
-            new_last_seen = copy.deepcopy(last_seen)
-            new_depth = copy.deepcopy(depth)
-
-            # If a step ID exists, push it onto the step stack
-            if step_id != "":
-                new_step_stack.append(step_id)
-
-            # Recursively continue DFS
-            self._dfs_traverse_paths_change_impact(session, next_node_id, new_component_stack, new_step_stack, 
-                                                    new_last_seen, new_depth, paths, bookkeeping)
 
     def process_sequential_flows_to_component(self, component_id: str, depth: int, last_seen: dict[str, int], outer_workflows: list, 
                                               paths: dict[str, dict[str, list]]):
@@ -224,8 +88,9 @@ class FlowCalculation:
             paths (dict): A nested dictionary storing discovered flow paths.  
 
         Updates:
-            - Adds new entries to `paths` in the format: `paths[seen_id][component_id] = (outer_component_id, distance)`.  
+            - Adds new entries to `paths` in the format: `paths[seen_id][component_id] = (outer_component_id, flow_type, distance)`.  
         """
+
         # Iterate through previously seen components and their recorded depths
         for seen_id, depth_seen in last_seen.items():
             # Skip the target component itself and outer workflows
@@ -236,15 +101,23 @@ class FlowCalculation:
                 for outer_component_id in outer_workflows:
                     # Ensure the seen component was encountered at a greater depth than the outer workflow component
                     if depth_seen > last_seen[outer_component_id]:
-                        append_paths_entry(seen_id, component_id, tuple([outer_component_id, distance]), paths)
+                        if distance == 1:
+                            flow_type = "Sequential"
+                        else:
+                            flow_type = "Transitive"
+                        append_paths_entry(seen_id, component_id, tuple([outer_component_id, flow_type, distance]), paths)
 
-    def process_direct_indirect_flow_of_node_id(self, node_id, component_id, outer_workflows, component_stack, step_stack, bookkeeping, paths):
+    def process_direct_indirect_flow_of_node_id(self, node_id: int, component_id: str, outer_workflows: list, 
+                                                component_stack: deque, step_stack: deque, 
+                                                bookkeeping: dict[str, list[tuple[list, list]]], 
+                                                paths: dict[str, dict[str, list]], direct: bool):
         """
-        Processes the direct and indirect flow of a given node within the outer workflows.
+        Processes the direct or indirect flow of a given node within the outer workflows.
 
-        This function iterates through the outer workflows and establishes bidirectional paths 
-        between the given component and the outer workflows. If the node has 
-        already been processed as a member of an outer workflow in the context of the same step(s), 
+        This function iterates through the outer workflows and establishes a direct flow
+        from the outer workflow to the component or an indirect flow from the component to
+        the outer workflow. 
+        If the node has already been processed as a member of an outer workflow in the context of the same step(s), 
         it skips redundant processing.
 
         Parameters:
@@ -255,11 +128,15 @@ class FlowCalculation:
             step_stack (deque): A stack maintaining the sequence of outer steps taken.
             bookkeeping (dict): A record of previously processed nodes to prevent redundant computations.
             paths (dict): A dictionary storing established connections between components.
+            direct (bool): Whether to create a direct or indirect flow.
+        
+        Updates:
+            - Adds new entries to `paths` in the format: `paths[seen_id][component_id] = (outer_component_id, flow_type, distance)`.  
         """
         
-        for index, outer_component_id in enumerate(outer_workflows):
+        for index, outer_workflow_id in enumerate(outer_workflows):
             # Skip if the outer component is the same as the current component
-            if component_id != outer_component_id:
+            if component_id != outer_workflow_id:
                 # Check if the node has already been processed
                 if node_id in bookkeeping:
                     # Extract the nested components and steps relevant to the current workflow depth
@@ -272,7 +149,131 @@ class FlowCalculation:
                     if current_stack_structure_processed(bookkeeping, node_id, nested_components, nested_steps):
                         continue
 
-                entry = tuple([outer_component_id, 1])
-                append_paths_entry(component_id, outer_component_id, entry, paths)
-                append_paths_entry(outer_component_id, component_id, entry, paths)
+                if direct:
+                    entry = (outer_workflow_id, "Direct", 1)
+                    append_paths_entry(outer_workflow_id, component_id, entry, paths)
+                else:
+                    entry = (outer_workflow_id, "Indirect", 1)
+                    append_paths_entry(component_id, outer_workflow_id, entry, paths)
+
+
+    def bsf_traverse_paths_change_impact(self, session: Session, component_id, bookkeeping, paths):
+        start_component_id = clean_component_id(component_id)
+        
+        # Find all "InParameter" nodes associated with the component
+        result = get_all_in_parameter_nodes_of_entity(session, start_component_id)
+        start_nodes = [record["nodeId"] for record in result]
+        
+        bfs_queue = Queue()
+
+        for node in start_nodes:
+            node_details = {
+                "node_id": node,
+                "component_stack": deque([]),
+                "step_stack": deque([]),
+                "depth": 0,
+                "last_seen": {}
+            }
+            bfs_queue.put(node_details)
+
+        while not bfs_queue.empty():
+            node_details: dict = bfs_queue.get()
+            node_id: int = node_details["node_id"]
+            component_stack: deque = node_details["component_stack"]
+            step_stack: deque = node_details["step_stack"]
+            depth: int = node_details["depth"]
+            last_seen: dict = node_details["last_seen"]
+
+            component_id, current_node_labels, component_type = get_node_details(session, str(node_id))
+
+            # If an InParameter node has a new component_id, enter this component
+            if "InParameter" in current_node_labels:
+                component_stack.append((component_id, component_type))
+                print(f"entering {component_id}")
+
+                # The first In-Parameter belongs to the outer workflow and gets depth 0
+                last_seen[component_id] = depth
+
+                # Extract list of outer workflows (leftmost = outermost)
+                outer_workflows = [workflow[0] for workflow in component_stack if workflow[1] == "Workflow"]
+                # Process sequential and direct flows
+                self.process_sequential_flows_to_component(component_id, depth, last_seen, outer_workflows, paths)
+                self.process_direct_indirect_flow_of_node_id(node_id, component_id, outer_workflows, component_stack, 
+                                                              step_stack, bookkeeping, paths, direct=True)
+                
+                # Increment depth as we move deeper into the traversal
+                depth = depth + 1
+        
+            # If the stack is empty, return early
+            if not component_stack: continue
+        
+            # Exit component when an OutParameter is found
+            if "OutParameter" in current_node_labels:
+                component_stack.pop()
+                # Process indirect flows
+                outer_workflows = [workflow[0] for workflow in component_stack if workflow[1] == "Workflow"]
+                self.process_direct_indirect_flow_of_node_id(node_id, component_id, outer_workflows, component_stack, step_stack, 
+                                                             bookkeeping, paths, direct=False)
+                if component_type == "Workflow":
+                    # When we exit a workflow, the workflow needs to be at 
+                    # the same depth as its last step
+                    last_seen[component_id] = depth - 1 
+
+            # If the stack is empty after popping, return early
+            if not component_stack: continue
+
+            # Convert current stacks into list representations for bookkeeping
+            current_cs = list(component_stack)
+            current_ss = list(step_stack)
+        
+            # Check if the current node has been encountered before
+            if node_id in bookkeeping:
+                # If the (sub)path structure has already been processed under the same conditions, exit early
+                if current_stack_structure_processed(bookkeeping, node_id, current_cs, current_ss):
+                    continue
+                # Otherwise, update bookkeeping with the new state
+                bookkeeping[node_id].append((current_cs, current_ss))
+            else:
+                # Initialize a new entry in bookkeeping for this node
+                bookkeeping[node_id] = [(current_cs, current_ss)]
+        
+            # Find valid connections based on component type
+            results = list()
+            if component_stack[-1][1] == "Workflow" and step_stack and "InParameter" not in current_node_labels:
+                # If inside a workflow and transitioning between steps, use both the top componet_id and top step_id in the stacks
+                results = get_valid_connections(session, node_id, component_stack[-1][0], step_stack[-1])
+                step_stack.pop()
+            else:
+                # Otherwise, retrieve valid connections only based on the top component_id in the component_stack
+                results = get_valid_connections(session, node_id, component_stack[-1][0])
+
+            # Extract next node IDs and step IDs from query results
+            records = [ (record["nextNodeId"], record["stepId"]) for record in results ]
+
+            # Recursively process each valid connection
+            for record in records:      
+                next_node_id = record[0]         
+                step_id = record[1]
+
+                # Create deep copies to ensure traversal states are independent
+                new_component_stack = copy.deepcopy(component_stack)
+                new_step_stack = copy.deepcopy(step_stack)
+                new_last_seen = copy.deepcopy(last_seen)
+                new_depth = copy.deepcopy(depth)
+
+                # If a step ID exists, push it onto the step stack
+                if step_id != "":
+                    new_step_stack.append(step_id)
+                
+                next_node_details = {
+                    "node_id": next_node_id,
+                    "component_stack": new_component_stack,
+                    "step_stack": new_step_stack,
+                    "depth": new_depth,
+                    "last_seen": new_last_seen
+                }
+
+                bfs_queue.put(next_node_details)
+    
+
                
