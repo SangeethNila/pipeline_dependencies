@@ -1,32 +1,24 @@
+from graph_traversal.metric_calculations.FlowCalculation import FlowCalculation
+from graph_traversal.metric_calculations.ChangeImpact import ChangeImpact
+from graph_traversal.subgraph_preprocessing.SubgraphPreprocessing import SubgraphPreprocessing
+from metric_evaluation.change_impact_eval import evaluate_coupling
+from neo4j_graph_queries.utils import clean_component_id
+from process_gitlab.process_history import  calculate_co_change_ratios
 from graph_creation.repo_processing import process_repos
 from neo4j import GraphDatabase
 import dotenv
 import os
-import gitlab
-import subprocess
+import pandas as pd
 
-from graph_creation.utils import GITLAB_ASTRON
+from process_gitlab.process_repos import clone_repos, save_commit_history_for_evaluation
 
-def clone_repos(repo_list: list[str], folder_name: str) -> None:
-    """
-    Given a list of relative paths to ASTRON GitLab repositories and the name of a folder,
-    the mentioned repositories are cloned into the mentioned folder.
 
-    Parameters:
-        repo_list (list[str]): list of relative paths to ASTRON GitLab repositories
-        folder_name (str): the name of the folder to clone the repos into
-    """
-    gl = gitlab.Gitlab(GITLAB_ASTRON)
-    projects = gl.projects.list(iterator=True, get_all=True)
-    for project in projects:
-        repo_name = project.attributes['path_with_namespace']
-        if repo_name in repo_list:
-            git_url = project.ssh_url_to_repo
-            subprocess.call(['git', 'clone', git_url, f'./{folder_name}/{repo_name}'])
 
 if __name__ == '__main__':
-    relevant_repos = ['ldv/imaging_compress_pipeline'
-                      , 'RD/LINC'
+    relevant_repos = [
+        'ldv\\imaging_compress_pipeline'
+                    , 
+                    'RD\\LINC'
                       ]
     folder = 'repos'
     # clone_repos(relevant_repos, folder)
@@ -39,14 +31,29 @@ if __name__ == '__main__':
     URI = os.getenv("NEO4J_URI")
     AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
 
-    repo_paths = [f'{folder}/{path}' for path in relevant_repos]
+    repo_paths = [f'{folder}\\{path}' for path in relevant_repos]
     
     with GraphDatabase.driver(URI, auth=AUTH) as driver:
         driver.verify_connectivity()
         print("Connection established.")
         driver = GraphDatabase.driver(URI, auth=AUTH)
-        # with driver.session() as session:
-        #     session.run("MATCH ()-[r:DATA]-() DELETE r")
-        process_repos(repo_paths, driver, build=False, calculate=True)
+        # clone_repos(relevant_repos, folder)
+        # process_repos(repo_paths, driver)
+        # neo4j_traversal = SubgraphPreprocessing(driver)
+        # neo4j_traversal.preprocess_all_graphs()
+
+        # flow_calculation = FlowCalculation(driver)
+        # flow_calculation.perform_flow_path_calculation()
+
+        # with open("flow_paths.json", "r") as json_file:
+        #     paths = json.load(json_file)
+        # change_impact = ChangeImpact(driver)
+        # change_impact.complete_path_analysis(paths)
+        # with open("commits_for_evaluation.json", "r") as json_file:
+        #     commit_history = json.load(json_file)
+        # calculate_co_change_ratios(commit_history)
+
+        evaluate_coupling("change_impact_analysis.csv","history_percent.csv")
+
         driver.close()
 
