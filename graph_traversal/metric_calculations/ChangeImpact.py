@@ -39,7 +39,7 @@ class ChangeImpact:
         return parts1[:2] == parts2[:2]
 
     
-    def complete_path_analysis(self, paths: dict[str, dict[str, list]], penalty: float):
+    def complete_path_analysis(self, paths: dict[str, dict[str, list]]):
         """
         Analyzes the change impact between components based on the flow paths and calculates the coupling score.
 
@@ -55,7 +55,6 @@ class ChangeImpact:
                 Each path in `paths[source_id][target_id]` is represented as a tuple `(context_id, distance)`, where:  
                 - `context_id` is the ID of the component in whose context the path was identified.  
                 - `distance` is the number of edges in the path from source to target.
-            penalty (float): A penalty factor applied to the distances in the coupling score calculation.
 
         Returns:
             pd.DataFrame: A DataFrame representing the coupling score matrix between all components.
@@ -63,12 +62,10 @@ class ChangeImpact:
         ## Coupling Score:
             The coupling score between two components is calculated using the following formula:
             
-            `coupling_score = Σ (N_l / (l ** penalty))` for all distinct path distances `l > 0`, where:
+            `coupling_score = Σ (N_l /l)` for all distinct path distances `l > 0`, where:
             
                 - `N_l` is the frequency (count) of paths with distance `l`.
                 - `l` is the distance (number of edges) between the two components in the flow paths.
-                - `penalty` is a factor that adjusts the influence of longer paths on the coupling score. A higher penalty 
-                reduces the impact of longer paths.
             
             In other words, the coupling score is a weighted sum of path frequencies, where the weights are the inverses 
             of the distances raised to the power of the penalty. This formula gives more importance to shorter paths, while 
@@ -106,11 +103,11 @@ class ChangeImpact:
                     all_paths.extend(paths[component_id_2][component_id_1])
 
                 # Extract distances from the paths
-                distances = [path[1] for path in all_paths]
+                distances = [path[2] for path in all_paths]
                 # Get the frequency dictionary for distances
                 distance_counts = dict(Counter(distances))
                 # Compute coupling score
-                coupling_score = sum(N_l / (l ** penalty) for l, N_l in distance_counts.items() if l > 0)
+                coupling_score = sum(N_l /l for l, N_l in distance_counts.items() if l > 0)
 
                 # Update the matrix with the calculated coupling score for both directions
                 matrix.at[component_id_1, component_id_2] = coupling_score
