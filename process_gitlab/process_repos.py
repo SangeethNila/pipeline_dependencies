@@ -24,31 +24,34 @@ def clone_repos(repo_list: list[str], folder_name: str) -> None:
 
 def save_commit_history_for_evaluation():
     PROJECT_ID = 35  
-    MERGE_REQUEST_ID = 208 
+    MERGE_REQUEST_IDS = [208, 206, 109, 175, 179, 145, 140] 
 
     gl = gitlab.Gitlab(GITLAB_ASTRON)
     project = gl.projects.get(PROJECT_ID)
-
-    # Get the merge request
-    merge_request = project.mergerequests.get(MERGE_REQUEST_ID)
-
-    # Fetch commits from the merge request
-    commits = merge_request.commits()
     commit_data = []
-    for commit in commits:
-        
-        # Skip merge commits or conflict resolves
-        commit_message = str(commit.message).lower()
-        if "merge" in commit_message:
-            if "branch" in commit_message or "conflict" in commit_message:
-                continue
 
-        commit_details = project.commits.get(commit.id)
-        commit_entry = {
-            "id": commit.id,
-            "changed_files": [diff['new_path'] for diff in commit_details.diff(get_all=True)]
-        }
-        commit_data.append(commit_entry)
+    for id in MERGE_REQUEST_IDS:
+
+        # Get the merge request
+        merge_request = project.mergerequests.get(id)
+
+        # Fetch commits from the merge request
+        commits = merge_request.commits()
+        for commit in commits:
+            
+            # Skip merge commits or conflict resolves
+            commit_message = str(commit.message).lower()
+            if "merge" in commit_message:
+                if "branch" in commit_message or "conflict" in commit_message:
+                    continue
+
+            commit_details = project.commits.get(commit.id)
+            commit_entry = {
+                "id": commit.id,
+                "changed_files": [diff['new_path'] for diff in commit_details.diff(get_all=True)]
+            }
+            commit_data.append(commit_entry)
+
     # Save to a JSON file
     with open("commits_for_evaluation.json", "w", encoding="utf-8") as file:
         json.dump(commit_data, file, indent=4)

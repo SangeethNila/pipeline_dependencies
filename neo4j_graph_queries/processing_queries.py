@@ -154,6 +154,7 @@ def get_all_outer_out_parameter_nodes(session: Session):
 def get_data_flow_relationships_for_sorting(session: Session):
     query = """
     MATCH (a:InParameter)-[:DATA_FLOW]->(b:InParameter)
+    WHERE a.component_type = "Workflow" AND b.component_type = "Workflow"
     RETURN a.component_id AS componentA, b.component_id AS componentB
     """
     result = session.run(query)

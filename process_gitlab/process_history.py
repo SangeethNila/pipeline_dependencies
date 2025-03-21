@@ -13,7 +13,7 @@ def calculate_co_change_ratios(commit_history: list[dict]):
     for commit in commit_history:
         files: list[str] = commit["changed_files"]
 
-        cwl_files = ['RD\\LINC\\' + str(Path(file)) for file in files if file.endswith('cwl')]
+        cwl_files = {'RD\\LINC\\' + str(Path(file)) for file in files if file.endswith('cwl')}
 
         # Update change counts for each individual file
         for file in cwl_files:
@@ -39,6 +39,7 @@ def calculate_co_change_ratios(commit_history: list[dict]):
 
         if total_changes > 0:
             ratio = (co_count / total_changes) * 100
+
         else:
             ratio = 0
 
