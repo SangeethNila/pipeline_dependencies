@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from neo4j import Driver, GraphDatabase
 import pandas as pd
 from neo4j_graph_queries.processing_queries import get_all_component_ids
@@ -117,3 +119,18 @@ class ChangeImpact:
         matrix.to_csv("change_impact_analysis.csv")
 
         return matrix
+    
+    def change_impact_exploration(self, ci_matrix_path, repos):
+        ci_matrix = pd.read_csv(ci_matrix_path, index_col=[0])
+        files = ci_matrix.index
+        cumulative_scores = {}
+        for repo in repos:
+            repo_path = str(Path(repo))
+            cumulative_scores[repo_path] = {}
+            for file in files:
+                if file.startswith(repo_path):
+                    cumulative_scores[repo_path][file] = ci_matrix.loc[ci_matrix[file] != -1, file].sum()
+
+        # Save to a JSON file
+        with open("change_impact_cumulative_scores.json", "w", encoding="utf-8") as file:
+            json.dump(cumulative_scores, file, indent=4)
