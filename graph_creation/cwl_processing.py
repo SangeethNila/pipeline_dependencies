@@ -1,10 +1,21 @@
 from pathlib import Path
 import re
 from neo4j import Driver
-from graph_creation.utils import extract_js_expression_dependencies, get_input_source, process_control_dependencies, process_in_param, process_parameter_source
+from graph_creation.utils import extract_js_expression_dependencies, get_input_source, process_control_dependencies, process_in_param, process_output, process_parameter_source, process_step_lookup
 from neo4j_graph_queries.create_node_queries import ensure_git_node, ensure_in_parameter_node, ensure_out_parameter_node
 from neo4j_graph_queries.create_edge_queries import  create_out_param_relationship, create_references_relationship
 from neo4j_graph_queries.utils import get_is_workflow
+
+
+def process_cwl_entity(driver, entity):
+    is_workflow = get_is_workflow(entity)
+    steps = None
+    if is_workflow:
+        steps = process_step_lookup(entity)
+    process_cwl_inputs(driver, entity)
+    process_cwl_outputs(driver, entity, steps)
+    if steps:
+        process_cwl_steps(driver, entity, steps)
 
 def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
     """
@@ -29,8 +40,11 @@ def process_cwl_inputs(driver: Driver, cwl_entity: dict) -> None:
     elif isinstance(cwl_entity['inputs'], dict):
         # If 'inputs' is a dictionary, iterate over the keys (which are the input IDs)
         input_dict = cwl_entity['inputs']
-        for key in input_dict.keys():
-            process_in_param(driver, key, component_id, input_dict[key]['type'], cwl_entity['class'])
+        for key, value in input_dict.items():
+            if isinstance(value, dict):
+                process_in_param(driver, key, component_id, value['type'], cwl_entity['class'])
+            else:
+                process_in_param(driver, key, component_id, value, cwl_entity['class'])
 
 def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup: dict) -> None:
     """
@@ -58,28 +72,29 @@ def process_cwl_outputs(driver: Driver, cwl_entity: dict, step_lookup: dict) -> 
         None
     """
     component_id = cwl_entity['path']
-    for output in cwl_entity['outputs']:
-        if isinstance(output, dict):
-            # Create out-parameter node with the parameter ID as defined in the component
-            # and component ID equal to the path of the componet
-            out_param_node = ensure_out_parameter_node(driver, output['id'], component_id, output["type"], cwl_entity['class'])
-            out_param_node_internal_id = out_param_node[0]
+    outputs = cwl_entity['outputs']
 
-            # If it's not a workflow, create a relationship between the component and the output parameter
-            is_worflow = get_is_workflow(cwl_entity)
-            if not is_worflow:
-                create_out_param_relationship(driver, component_id, out_param_node_internal_id, output['id'])
-
-            # If the output has an 'outputSource', process the relationship(s) to the source(s)
+    if isinstance(outputs, list):
+        for output in cwl_entity['outputs']:
+            output_id = output['id']
+            output_source = None
             if 'outputSource' in output:
-                # The output source can be a singular ID or a list of IDs
-                if isinstance(output['outputSource'], str):
-                    source_id = output['outputSource']
-                    process_parameter_source(driver, out_param_node_internal_id, source_id, component_id, step_lookup)
-                elif isinstance(output['outputSource'], list):
-                    for source_id in output['outputSource']:
-                        process_parameter_source(driver, out_param_node_internal_id, source_id, component_id, step_lookup)
-   
+                output_source = output['outputSource']
+                process_output(driver, output_id, output['type'], component_id, cwl_entity['class'], step_lookup, output_source)
+            else:
+                process_output(driver, output_id, output['type'], component_id, cwl_entity['class'], step_lookup, output_source)
+    elif isinstance(outputs, dict):
+        for output_id, details in outputs.items():
+            if isinstance(details, str):
+                process_output(driver, output_id, details, component_id, cwl_entity['class'], step_lookup)
+            else:
+                if 'outputSource' in details:
+                    output_source = details['outputSource']
+                    process_output(driver, output_id, output['type'], component_id, cwl_entity['class'], step_lookup, output_source)
+                else:
+                    process_output(driver, output_id, details['type'], component_id, cwl_entity['class'], step_lookup)
+
+
 def process_cwl_steps(driver: Driver, cwl_entity: dict, step_lookup) -> None:   
     """
     Processes the steps of a CWL entity, creating necessary nodes and relationships 
@@ -110,7 +125,14 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, step_lookup) -> None:
     for step in cwl_entity['steps']:
 
         # Get the resolved path of the step from the step_lookup
-        step_path = step_lookup[step['id']]
+        step_path: str = step_lookup[step['id']]
+
+        if not isinstance(step['run'], str):
+            run_dict = step['run']
+            run_dict['path'] = step_path
+            print(f"processing {step_path}")
+            process_cwl_entity(driver, run_dict)
+            continue
 
         # Process the list of inputs of the step 
         for input in step['in']:
@@ -137,8 +159,9 @@ def process_cwl_steps(driver: Driver, cwl_entity: dict, step_lookup) -> None:
                 if ref[0] == "parameter":
                     # Retrieve the source of the referenced input parameter
                     source = get_input_source(step['in'], ref[1])
-                else: 
-                    # The reference already mentions the source (output of a step)
+                        
+                if not source: 
+                    # The reference already mentions the source (output of a step or workflow input)
                     source = ref[1]
                 if source:
                     # Create control dependencies from the in-parameters of the step to the source of the reference

@@ -41,8 +41,6 @@ def create_out_param_relationship(driver: Driver, prefixed_component_id: str, pa
     """
     component_id = clean_component_id(prefixed_component_id)
     component_node_id = ensure_component_node(driver, component_id)[0]
-    print(parameter_internal_id)
-    print(component_node_id)
     return create_data_relationship(driver, component_node_id, parameter_internal_id, component_id, parameter_id)
     
     

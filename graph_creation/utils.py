@@ -2,7 +2,7 @@ from pathlib import Path
 from neo4j import Driver
 import re
 from neo4j_graph_queries.create_node_queries import ensure_component_node, ensure_in_parameter_node, ensure_out_parameter_node
-from neo4j_graph_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_in_param_relationship
+from neo4j_graph_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_in_param_relationship, create_out_param_relationship
 from neo4j_graph_queries.processing_queries import get_all_in_parameter_nodes_of_entity
 
 GITLAB_ASTRON ='https://git.astron.nl'
@@ -19,14 +19,20 @@ def process_step_lookup(cwl_entity: dict) -> dict[str, str]:
         dict: A dictionary where each key is the ID of the step in the context of the workflow, and the value is the resolved file path of the step
     """
     step_lookup = {}
+    # Retrieve the directory containing the workflow file
+    workflow_folder = Path(cwl_entity['path']).parent
+    while ".cwl" in str(workflow_folder):
+        workflow_folder = workflow_folder.parent
+
     for step in cwl_entity['steps']:
-        # Retrieve the directory containing the workflow file
-        workflow_folder = Path(cwl_entity['path']).parent
         # Resolve the full path of the step file by combining the workflow folder and the step's 'run' path
-        full_step_path = workflow_folder / Path(step['run'])
+        if isinstance(step['run'], str):
+            full_step_path = workflow_folder / Path(step['run'])
+            step_path = resolve_relative_path(full_step_path)
+        else:   
+            step_path = Path(cwl_entity['path']) / step['id']
         # Resolve the path (deal with "./" and "../")
-        step_path = str(resolve_relative_path(full_step_path))
-        step_lookup[step['id']] = step_path
+        step_lookup[step['id']] = str(step_path)
     return step_lookup
 
 def process_in_param(driver: Driver, param_id: str, component_id: str, param_type: str, component_type: str) -> None:
@@ -43,10 +49,8 @@ def process_in_param(driver: Driver, param_id: str, component_id: str, param_typ
     Returns:
         None
     """
-
     param_node = ensure_in_parameter_node(driver, param_id, component_id, param_type, component_type)
     if component_type != "Workflow":
-        ensure_component_node(driver, component_id)
         create_in_param_relationship(driver, component_id, param_node[0], param_node[1])
 
 def process_parameter_source(driver: Driver, param_node_internal_id: int, source_id: str, workflow_id: str, step_lookup: dict, step_id: str = "") -> None:
@@ -67,7 +71,7 @@ def process_parameter_source(driver: Driver, param_node_internal_id: int, source
     source_param_node = get_source_node(driver, source_id, workflow_id, step_lookup)
 
     # Create a relationship between the parameter node and its source
-    create_data_relationship(driver, source_param_node, param_node_internal_id,workflow_id, source_id, step_id)
+    create_data_relationship(driver, source_param_node, param_node_internal_id, workflow_id, source_id, step_id)
 
 
 def get_source_node(driver: Driver, source_id: str, workflow_id: str, step_lookup: dict) -> int:
@@ -189,3 +193,26 @@ def get_input_source(inputs: list[dict], input_id: str) -> str | None:
         if inp["id"] == input_id:
             return inp.get("source")  # returns None if 'source' doesn't exist
     return None  # returns None if input_id is not found
+
+def process_output(driver, output_id, output_type, component_id, component_type, step_lookup, output_source = None):
+    # Create out-parameter node with the parameter ID as defined in the component
+    # and component ID equal to the path of the componet
+    out_param_node = ensure_out_parameter_node(driver, output_id, component_id, output_type, component_type)
+    out_param_node_internal_id = out_param_node[0]
+
+    # If it's not a workflow, create a relationship between the component and the output parameter
+    if component_type != "Workflow":
+        create_out_param_relationship(driver, component_id, out_param_node_internal_id, output_id)
+
+    # If the output has an 'outputSource', process the relationship(s) to the source(s)
+    if output_source:
+        # The output source can be a singular ID or a list of IDs
+        if isinstance(output_source, str):
+            source_id = output_source
+            print(source_id)
+            process_parameter_source(driver, out_param_node_internal_id, source_id, component_id, step_lookup)
+        elif isinstance(output_source, list):
+            for source_id in output_source:
+                print(source_id)
+                process_parameter_source(driver, out_param_node_internal_id, source_id, component_id, step_lookup)
+

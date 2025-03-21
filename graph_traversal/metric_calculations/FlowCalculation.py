@@ -62,9 +62,8 @@ class FlowCalculation:
             paths: dict[str, dict[str, list]] = {}
             workflow_ids = sorted_components
             for workflow in workflow_ids:
-                if "example" not in workflow:
-                    print(f"Preprocessing: {workflow}")
-                    self.bsf_traverse_paths_change_impact(session, workflow, bookkeeping, paths)
+                print(f"Preprocessing: {workflow}")
+                self.bsf_traverse_paths_change_impact(session, workflow, bookkeeping, paths)
             with open("flow_paths.json", "w") as json_file:
                 json.dump(paths, json_file, indent=4)
 
@@ -201,8 +200,9 @@ class FlowCalculation:
                 self.process_direct_indirect_flow_of_node_id(node_id, component_id, outer_workflows, component_stack, 
                                                               step_stack, bookkeeping, paths, direct=True)
                 
-                # Increment depth as we move deeper into the traversal
-                depth = depth + 1
+                # Increment depth as we move deeper into the traversal, unless we just entered a workflow
+                if component_type != "Workflow":
+                    depth = depth + 1
         
             # If the stack is empty, return early
             if not component_stack: continue

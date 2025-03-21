@@ -29,14 +29,15 @@ class SubgraphPreprocessing:
             for workflow in outer_workflow_ids:
                 print(f"Preprocessing: {workflow}")
                 self.traverse_graph_process_paths(session, workflow, bookkeeping)
-            control_pairs = get_nodes_with_control_edges(session)
-            for pair in control_pairs:
-                target_id = pair["targetId"]
-                edge_component_id = pair["componentId"]
-                edge_id = pair["edgeId"]
+            control_tuples = get_nodes_with_control_edges(session)
+            for tuple in control_tuples:
+                target_id = tuple["targetId"]
+                edge_component_id = tuple["componentId"]
+                edge_id = tuple["edgeId"]
                 result = get_workflow_list_of_data_edges_from_node(session, target_id, edge_component_id)
                 workflow_lists = [record["workflow_list"] for record in result]
-                update_workflow_list_of_edge(session, edge_id, workflow_lists[0])
+                if len(workflow_lists) > 0:
+                    update_workflow_list_of_edge(session, edge_id, workflow_lists[0])
 
 
     def traverse_graph_process_paths(self, session: Session, component_id: str, bookkeeping):

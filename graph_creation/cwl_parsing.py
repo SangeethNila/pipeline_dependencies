@@ -53,4 +53,4 @@ def process_cwl_file(path: str) -> dict:
         # Add the file path to the dictionary for reference
         yaml_dict['path'] = path
 
-        return yaml_dict
+    return yaml_dict
