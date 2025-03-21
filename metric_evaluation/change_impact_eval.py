@@ -5,7 +5,7 @@ from cliffs_delta import cliffs_delta
 def evaluate_coupling(coupling_matrix_path, cochange_matrix_path):
     # Load the two separate matrices (dataframes)
     # Example of loading two CSV files (replace with your file paths)
-    c_matrix = pd.read_csv(coupling_matrix_path, index_col=[0])  # This matrix contains IFC values
+    c_matrix = pd.read_csv(coupling_matrix_path, index_col=[0])  # This matrix contains coupling values
     cochange_matrix = pd.read_csv(cochange_matrix_path, index_col=[0])  # This matrix contains cochange percentages
 
     # Find the common indices (pairs) between the two matrices (both row and column)
@@ -13,11 +13,11 @@ def evaluate_coupling(coupling_matrix_path, cochange_matrix_path):
     common_rows = c_matrix.index.intersection(cochange_matrix.index)
     common_columns = c_matrix.columns.intersection(cochange_matrix.columns)
 
-    # Extract the IFC values and cochange percentages for the common pairs
+    # Extract the coupling values and cochange percentages for the common pairs
     c_values_common = c_matrix.loc[common_rows, common_columns].values.flatten()
     cochange_values_common = cochange_matrix.loc[common_rows, common_columns].values.flatten()
 
-        # Create two groups based on IFC values
+    # Create two groups based on coupling values
     group_c_gt_0 = cochange_values_common[c_values_common > 0]
     group_c_eq_0 = cochange_values_common[c_values_common == 0]
 
