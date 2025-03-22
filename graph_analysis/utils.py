@@ -1,6 +1,6 @@
 from pathlib import Path
 from neo4j import Session
-from neo4j_graph_queries.processing_queries import count_nodes_and_edges, get_data_flow_relationships_for_sorting
+from neo4j_graph_queries.processing_queries import count_nodes_and_edges, get_all_workflow_ids, get_data_flow_relationships_for_sorting
 import networkx as nx
 
 from neo4j_graph_queries.utils import clean_component_id
@@ -58,13 +58,15 @@ def current_stack_structure_processed(bookkeeping, node_id, current_cs, current_
 
 # Build a directed graph and perform a topological sort
 def perform_topological_sort(session: Session):
-    # Get the edges (relationships) from Neo4j
+    # Add all workflow IDs as edges
+    workflow_ids = get_all_workflow_ids(session)
+    # Add edge workflow_A -> workflow_B if A calls B as subworkflow
     edges = get_data_flow_relationships_for_sorting(session)
 
     # Create a directed graph
     G = nx.DiGraph()
+    G.add_nodes_from(workflow_ids)
     G.add_edges_from(edges)
-
     # Perform topological sort
     try:
         sorted_components = list(nx.topological_sort(G))
