@@ -4,6 +4,7 @@ import re
 from neo4j_graph_queries.create_node_queries import ensure_component_node, ensure_in_parameter_node, ensure_out_parameter_node
 from neo4j_graph_queries.create_edge_queries import create_control_relationship, create_data_relationship, create_in_param_relationship, create_out_param_relationship
 from neo4j_graph_queries.processing_queries import get_all_in_parameter_nodes_of_entity
+from neo4j_graph_queries.utils import get_is_workflow_class
 
 GITLAB_ASTRON ='https://git.astron.nl'
 
@@ -50,7 +51,7 @@ def process_in_param(driver: Driver, param_id: str, component_id: str, param_typ
         None
     """
     param_node = ensure_in_parameter_node(driver, param_id, component_id, param_type, component_type)
-    if component_type != "Workflow":
+    if not get_is_workflow_class(component_type):
         create_in_param_relationship(driver, component_id, param_node[0], param_node[1])
 
 def process_parameter_source(driver: Driver, param_node_internal_id: int, source_id: str, workflow_id: str, step_lookup: dict, step_id: str = "") -> None:
@@ -201,7 +202,7 @@ def process_output(driver, output_id, output_type, component_id, component_type,
     out_param_node_internal_id = out_param_node[0]
 
     # If it's not a workflow, create a relationship between the component and the output parameter
-    if component_type != "Workflow":
+    if not get_is_workflow_class(component_type):
         create_out_param_relationship(driver, component_id, out_param_node_internal_id, output_id)
 
     # If the output has an 'outputSource', process the relationship(s) to the source(s)

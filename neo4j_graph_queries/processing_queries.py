@@ -160,3 +160,20 @@ def get_data_flow_relationships_for_sorting(session: Session):
     result = session.run(query)
     edges = [(record['componentA'], record['componentB']) for record in result]
     return edges
+
+def count_nodes_and_edges(session: Session, prefix: str):
+    query = """
+    MATCH (n) 
+    WHERE n.component_id STARTS WITH $prefix
+    RETURN count(n) AS node_count
+    """
+    node_count = session.run(query, prefix=prefix).single()["node_count"]
+    
+    query = """
+    MATCH ()-[r]->() 
+    WHERE r.component_id STARTS WITH $prefix
+    RETURN count(r) AS edge_count
+    """
+    edge_count = session.run(query, prefix=prefix).single()["edge_count"]
+    
+    return node_count, edge_count

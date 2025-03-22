@@ -3,9 +3,9 @@ from neo4j import Driver, GraphDatabase, Session
 from collections import deque
 import json
 import copy
-from graph_traversal.utils import append_paths_entry, current_stack_structure_processed, perform_topological_sort
+from graph_analysis.utils import append_paths_entry, current_stack_structure_processed, perform_topological_sort
 from neo4j_graph_queries.processing_queries import get_all_in_parameter_nodes_of_entity, get_node_details, get_valid_connections
-from neo4j_graph_queries.utils import clean_component_id
+from neo4j_graph_queries.utils import clean_component_id, get_is_workflow_class
 from queue import Queue
 
 class FlowCalculation:
@@ -194,14 +194,14 @@ class FlowCalculation:
                 last_seen[component_id] = depth
 
                 # Extract list of outer workflows (leftmost = outermost)
-                outer_workflows = [workflow[0] for workflow in component_stack if workflow[1] == "Workflow"]
+                outer_workflows = [workflow[0] for workflow in component_stack if get_is_workflow_class(workflow[1])]
                 # Process sequential and direct flows
                 self.process_sequential_flows_to_component(component_id, depth, last_seen, outer_workflows, paths)
                 self.process_direct_indirect_flow_of_node_id(node_id, component_id, outer_workflows, component_stack, 
                                                               step_stack, bookkeeping, paths, direct=True)
                 
                 # Increment depth as we move deeper into the traversal, unless we just entered a workflow
-                if component_type != "Workflow":
+                if not get_is_workflow_class(component_type):
                     depth = depth + 1
         
             # If the stack is empty, return early
@@ -211,10 +211,10 @@ class FlowCalculation:
             if "OutParameter" in current_node_labels:
                 component_stack.pop()
                 # Process indirect flows
-                outer_workflows = [workflow[0] for workflow in component_stack if workflow[1] == "Workflow"]
+                outer_workflows = [workflow[0] for workflow in component_stack if get_is_workflow_class(workflow[1])]
                 self.process_direct_indirect_flow_of_node_id(node_id, component_id, outer_workflows, component_stack, step_stack, 
                                                              bookkeeping, paths, direct=False)
-                if component_type == "Workflow":
+                if get_is_workflow_class(component_type):
                     # When we exit a workflow, the workflow needs to be at 
                     # the same depth as its last step
                     last_seen[component_id] = depth - 1 
@@ -239,7 +239,7 @@ class FlowCalculation:
         
             # Find valid connections based on component type
             results = list()
-            if component_stack[-1][1] == "Workflow" and step_stack and "InParameter" not in current_node_labels:
+            if get_is_workflow_class(component_stack[-1][1]) and step_stack and "InParameter" not in current_node_labels:
                 # If inside a workflow and transitioning between steps, use both the top componet_id and top step_id in the stacks
                 results = get_valid_connections(session, node_id, component_stack[-1][0], step_stack[-1])
                 step_stack.pop()

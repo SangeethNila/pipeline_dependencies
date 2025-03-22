@@ -6,3 +6,8 @@ chardet
 dockerfile-parse
 gitpython
 re
+pprint
+networkx
+pandas
+scipy
+seaborn

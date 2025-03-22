@@ -1,6 +1,9 @@
+from pathlib import Path
 from neo4j import Session
-from neo4j_graph_queries.processing_queries import get_data_flow_relationships_for_sorting
+from neo4j_graph_queries.processing_queries import count_nodes_and_edges, get_data_flow_relationships_for_sorting
 import networkx as nx
+
+from neo4j_graph_queries.utils import clean_component_id
 
 def append_paths_entry(id1: str, id2: str, entry: tuple[str, int], paths: dict[str, dict[str, list]]) -> None:
     """
@@ -68,3 +71,4 @@ def perform_topological_sort(session: Session):
         return sorted_components
     except nx.NetworkXUnfeasible:
         raise Exception("The graph is not a DAG (Directed Acyclic Graph), so a topological sort is not possible.")
+    
