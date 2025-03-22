@@ -21,7 +21,7 @@ def get_is_workflow(cwl_entity: dict) -> bool:
     Returns:
         bool: True if the CWL entity is a workflow, False otherwise.
     """
-    return cwl_entity['class'] == 'Workflow'
+    return get_is_workflow_class(cwl_entity['class'])
 
 def get_is_workflow_class(class_name: str) -> bool:
     """
