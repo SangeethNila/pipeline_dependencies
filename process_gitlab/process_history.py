@@ -1,8 +1,17 @@
+import json
 from pathlib import Path
 from collections import defaultdict
 import pandas as pd
 
-def calculate_co_change_ratios(commit_history: list[dict]):
+from process_gitlab.utils import EVAL_REPOS, SHORTHAND_TO_PATH
+
+def calculate_all_co_change_perc():
+    for repo in EVAL_REPOS:
+        with open(f"commit_data/{repo}_commits_for_evaluation.json", "r") as json_file:
+            commit_history = json.load(json_file)
+        calculate_co_change_perc(commit_history, repo)
+
+def calculate_co_change_perc(commit_history: list[dict], repo):
 
     # Dictionary to store the co-change counts
     co_change_counts = defaultdict(int)
@@ -13,7 +22,10 @@ def calculate_co_change_ratios(commit_history: list[dict]):
     for commit in commit_history:
         files: list[str] = commit["changed_files"]
 
-        cwl_files = {'RD\\LINC\\' + str(Path(file)) for file in files if file.endswith('cwl')}
+        cwl_files = {file for file in files if file.endswith('cwl')}
+
+        if len(cwl_files) < 2:
+            continue
 
         # Update change counts for each individual file
         for file in cwl_files:
@@ -46,6 +58,6 @@ def calculate_co_change_ratios(commit_history: list[dict]):
         co_change_ratios.at[file1, file2] = ratio
         co_change_ratios.at[file2, file1] = ratio
 
-    co_change_ratios.to_csv(f"history_percent.csv")
+    co_change_ratios.to_csv(f"commit_data/co-change_percentages/{repo}_history_percent.csv")
 
     return co_change_ratios

@@ -2,14 +2,18 @@ import pandas as pd
 from scipy import stats
 from cliffs_delta import cliffs_delta
 
+def evaluate_all_coupling():
+    repos =  ['LINC', 'VLBI']
+    for repo in repos:
+        print(f"Analyzing {repo}")
+        cochange_matrix_path = f"commit_data/co-change_percentages/{repo}_history_percent.csv"
+        evaluate_coupling("change_impact_analysis.csv", cochange_matrix_path)
+
 def evaluate_coupling(coupling_matrix_path, cochange_matrix_path):
-    # Load the two separate matrices (dataframes)
-    # Example of loading two CSV files (replace with your file paths)
-    c_matrix = pd.read_csv(coupling_matrix_path, index_col=[0])  # This matrix contains coupling values
-    cochange_matrix = pd.read_csv(cochange_matrix_path, index_col=[0])  # This matrix contains cochange percentages
+    c_matrix = pd.read_csv(coupling_matrix_path, index_col=[0])  
+    cochange_matrix = pd.read_csv(cochange_matrix_path, index_col=[0]) 
 
     # Find the common indices (pairs) between the two matrices (both row and column)
-    # Here, we are considering both row and column indices for comparison
     common_rows = c_matrix.index.intersection(cochange_matrix.index)
     common_columns = c_matrix.columns.intersection(cochange_matrix.columns)
 
@@ -34,10 +38,6 @@ def evaluate_coupling(coupling_matrix_path, cochange_matrix_path):
     else:
         print("There is no statistically significant difference between the two groups.")
 
-    # Perform the Cliff's Delta test
-    delta = cliffs_delta(group_c_gt_0, group_c_eq_0)
-    print("Cliff's Delta:", delta)
-
     tau, tau_p_value = stats.kendalltau(c_values_common, cochange_values_common)
 
     # Output Kendall's Tau results
@@ -47,5 +47,5 @@ def evaluate_coupling(coupling_matrix_path, cochange_matrix_path):
     # Interpretation of Kendall's Tau result
     if tau_p_value < 0.05:
         print("There is a statistically significant correlation between coupling values and cochange percentages.")
-    else:
+    else: 
         print("There is no statistically significant correlation between coupling values and cochange percentages.")
