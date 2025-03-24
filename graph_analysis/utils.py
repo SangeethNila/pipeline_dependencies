@@ -1,11 +1,8 @@
-from pathlib import Path
 from neo4j import Session
-from neo4j_graph_queries.processing_queries import count_nodes_and_edges, get_all_workflow_ids, get_data_flow_relationships_for_sorting
+from neo4j_graph_queries.processing_queries import get_all_workflow_ids, get_data_flow_relationships_for_sorting
 import networkx as nx
 
-from neo4j_graph_queries.utils import clean_component_id
-
-def append_paths_entry(id1: str, id2: str, entry: tuple[str, int], paths: dict[str, dict[str, list]]) -> None:
+def append_info_flow_entry(id1: str, id2: str, entry: tuple[str, int], info_flows: dict[str, dict[str, list]]) -> None:
     """
     Adds an entry to the paths dictionary, ensuring necessary keys exist.
 
@@ -15,11 +12,11 @@ def append_paths_entry(id1: str, id2: str, entry: tuple[str, int], paths: dict[s
         entry (tuple[str, int]): The entry to append, consisting of a string and an integer.
         paths (dict[str, dict[str, list]]): The dictionary storing path entries.
     """
-    if id1 not in paths:
-        paths[id1] = dict()
-    if id2 not in paths[id1]:
-        paths[id1][id2] = list()
-    paths[id1][id2].append(entry)
+    if id1 not in info_flows:
+        info_flows[id1] = dict()
+    if id2 not in info_flows[id1]:
+        info_flows[id1][id2] = list()
+    info_flows[id1][id2].append(entry)
 
 def is_substack(inner_stack: list, outer_stack: list) -> bool:
     """

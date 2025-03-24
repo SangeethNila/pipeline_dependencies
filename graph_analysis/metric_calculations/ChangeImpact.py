@@ -41,22 +41,22 @@ class ChangeImpact:
         return parts1[:2] == parts2[:2]
 
     
-    def complete_path_analysis(self, paths: dict[str, dict[str, list]]):
+    def complete_info_flow_analysis(self, info_flows: dict[str, dict[str, list]]):
         """
-        Analyzes the change impact between components based on the flow paths and calculates the coupling score.
+        Analyzes the change impact between components based on the infomation flows and calculates the coupling score.
 
         This method calculates the coupling score between components based on the distances between them
-        in the flow paths, considering both direct and indirect connections. 
+        in the information flows, considering both direct and indirect connections. 
         The method generates a matrix where each cell (i, j) represents the coupling score between 
         components i and j. The matrix is then saved to a CSV file named `change_impact_analysis.csv`.
 
         Parameters:
-            paths (dict[str, dict[str, list]]): A nested dictionary where the first level keys represent 
+            info_flows (dict[str, dict[str, list]]): A nested dictionary where the first level keys represent 
                 component IDs, and the second level keys represent target component IDs. 
-                The values are lists of paths from the source to the target.
-                Each path in `paths[source_id][target_id]` is represented as a tuple `(context_id, distance)`, where:  
-                - `context_id` is the ID of the component in whose context the path was identified.  
-                - `distance` is the number of edges in the path from source to target.
+                The values are lists of info flows from the source to the target.
+                Each path in `info_flows[source_id][target_id]` is represented as a tuple `(context_id, distance)`, where:  
+                - `context_id` is the ID of the component in whose context the information flow was identified.  
+                - `distance` is 1 for direct/indirect/sequential flows, and 1 + # of intermediate step from source to target.
 
         Returns:
             pd.DataFrame: A DataFrame representing the coupling score matrix between all components.
@@ -67,11 +67,12 @@ class ChangeImpact:
             `coupling_score = Σ (N_l /l)` for all distinct path distances `l > 0`, where:
             
                 - `N_l` is the frequency (count) of paths with distance `l`.
-                - `l` is the distance (number of edges) between the two components in the flow paths.
+                - `l` is 1 + number of intermediate steps before the data exchange happens.
             
             In other words, the coupling score is a weighted sum of path frequencies, where the weights are the inverses 
-            of the distances raised to the power of the penalty. This formula gives more importance to shorter paths, while 
-            longer paths are penalized according to the specified penalty.
+            of the distances raised to the power of the penalty. This formula gives more importance to direct data exchanges between
+            components (which happen in direct, indirect, and sequential flows), while data exchanges that have intermediate steps
+              are penalized according to the specified penalty.
         """
         component_ids = get_all_component_ids(self.driver.session())
         sorted_component_ids = sorted([ id for id in component_ids if "example" not in id])
@@ -87,8 +88,8 @@ class ChangeImpact:
                 if not self.have_same_repo_prefix(component_id_1, component_id_2): continue
 
                 # Check if paths exist from each component
-                paths_from_1 = component_id_1 in paths
-                paths_from_2 = component_id_2 in paths
+                paths_from_1 = component_id_1 in info_flows
+                paths_from_2 = component_id_2 in info_flows
 
                 # Skip if no paths are available for either component
                 if not paths_from_1 and not paths_from_2: continue
@@ -97,12 +98,12 @@ class ChangeImpact:
                 all_paths = list()
  
                 # Add paths from component_id_1 to component_id_2
-                if paths_from_1 and component_id_2 in paths[component_id_1]:
-                    all_paths.extend(paths[component_id_1][component_id_2])
+                if paths_from_1 and component_id_2 in info_flows[component_id_1]:
+                    all_paths.extend(info_flows[component_id_1][component_id_2])
 
                 # Add paths from component_id_2 to component_id_1
-                if paths_from_2 and component_id_1 in paths[component_id_2]:
-                    all_paths.extend(paths[component_id_2][component_id_1])
+                if paths_from_2 and component_id_1 in info_flows[component_id_2]:
+                    all_paths.extend(info_flows[component_id_2][component_id_1])
 
                 # Extract distances from the paths
                 distances = [path[2] for path in all_paths]

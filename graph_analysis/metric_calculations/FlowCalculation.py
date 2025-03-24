@@ -3,7 +3,7 @@ from neo4j import Driver, GraphDatabase, Session
 from collections import deque
 import json
 import copy
-from graph_analysis.utils import append_paths_entry, current_stack_structure_processed, perform_topological_sort
+from graph_analysis.utils import append_info_flow_entry, current_stack_structure_processed, perform_topological_sort
 from neo4j_graph_queries.processing_queries import get_all_in_parameter_nodes_of_entity, get_node_details, get_valid_connections
 from neo4j_graph_queries.utils import clean_component_id, get_is_workflow_class
 from queue import Queue
@@ -38,11 +38,11 @@ class FlowCalculation:
         to compute flow paths, storing the results in a JSON file (`flow_paths.json`).  
 
         ### Data Structures:
-        - **`paths: dict[str, dict[str, list]]`**  
+        - **`info_flows: dict[str, dict[str, list]]`**  
             - A nested dictionary where:
                 - The first key (`str`) represents the source component ID.
                 - The second key (`str`) represents the target component ID.
-                - The value (`list`) contains all possible paths from the source to the target.  
+                - The value (`list`) contains all possible information flows from the source to the target.  
             - This dictionary is converted into the JSON file
 
         - **`bookkeeping: dict[int, list[tuple[list, list]]]`**  
@@ -59,18 +59,18 @@ class FlowCalculation:
             sorted_components = perform_topological_sort(session)
             bookkeeping = {}
 
-            paths: dict[str, dict[str, list]] = {}
+            info_flows: dict[str, dict[str, list]] = {}
             workflow_ids = sorted_components
             for workflow in workflow_ids:
                 print(f"Preprocessing: {workflow}")
-                self.bsf_traverse_paths_change_impact(session, workflow, bookkeeping, paths)
+                self.bsf_traverse_paths_change_impact(session, workflow, bookkeeping, info_flows)
             with open("flow_paths.json", "w") as json_file:
-                json.dump(paths, json_file, indent=4)
+                json.dump(info_flows, json_file, indent=4)
 
     def process_sequential_flows_to_component(self, component_id: str, depth: int, last_seen: dict[str, int], outer_workflows: list, 
-                                              paths: dict[str, dict[str, list]]):
+                                              info_flows: dict[str, dict[str, list]]):
         """
-        Processes sequential flow paths leading to the specified component and updates the paths dictionary.  
+        Processes sequential and transitive flows leading to the specified component and updates the info_flows dictionary.  
 
         This method iterates through previously seen components (`last_seen`), where the keys represent encountered  
         component IDs and the values indicate the depth at which they were encountered. It calculates the distance  
@@ -80,11 +80,11 @@ class FlowCalculation:
         from the seen component to the current component is added in the context of the outer workflow.  
 
         Parameters:
-            component_id (str): The target component for which flow paths are being processed.  
+            component_id (str): The target component for which flows are being processed.  
             depth (int): The current depth in the traversal.  
             last_seen (dict): A dictionary mapping component IDs to the depth at which they were last encountered.  
             outer_workflows (list): A list of outer workflow component IDs.  
-            paths (dict): A nested dictionary storing discovered flow paths.  
+            info_flows (dict): A nested dictionary storing discovered information flows.  
 
         Updates:
             - Adds new entries to `paths` in the format: `paths[seen_id][component_id] = (outer_component_id, flow_type, distance)`.  
@@ -104,12 +104,12 @@ class FlowCalculation:
                             flow_type = "Sequential"
                         else:
                             flow_type = "Transitive"
-                        append_paths_entry(seen_id, component_id, tuple([outer_component_id, flow_type, distance]), paths)
+                        append_info_flow_entry(seen_id, component_id, tuple([outer_component_id, flow_type, distance]), info_flows)
 
     def process_direct_indirect_flow_of_node_id(self, node_id: int, component_id: str, outer_workflows: list, 
                                                 component_stack: deque, step_stack: deque, 
                                                 bookkeeping: dict[str, list[tuple[list, list]]], 
-                                                paths: dict[str, dict[str, list]], direct: bool):
+                                                info_flows: dict[str, dict[str, list]], direct: bool):
         """
         Processes the direct or indirect flow of a given node within the outer workflows.
 
@@ -126,11 +126,11 @@ class FlowCalculation:
             component_stack (deque): A stack maintaining the sequence of outer components encountered.
             step_stack (deque): A stack maintaining the sequence of outer steps taken.
             bookkeeping (dict): A record of previously processed nodes to prevent redundant computations.
-            paths (dict): A dictionary storing established connections between components.
+            info_flows (dict): A dictionary storing established connections between components.
             direct (bool): Whether to create a direct or indirect flow.
         
         Updates:
-            - Adds new entries to `paths` in the format: `paths[seen_id][component_id] = (outer_component_id, flow_type, distance)`.  
+            - Adds new entries to `info_flows` in the format: `info_flows[seen_id][component_id] = (outer_component_id, flow_type, distance)`.  
         """
         
         for index, outer_workflow_id in enumerate(outer_workflows):
@@ -150,13 +150,13 @@ class FlowCalculation:
 
                 if direct:
                     entry = (outer_workflow_id, "Direct", 1)
-                    append_paths_entry(outer_workflow_id, component_id, entry, paths)
+                    append_info_flow_entry(outer_workflow_id, component_id, entry, info_flows)
                 else:
                     entry = (outer_workflow_id, "Indirect", 1)
-                    append_paths_entry(component_id, outer_workflow_id, entry, paths)
+                    append_info_flow_entry(component_id, outer_workflow_id, entry, info_flows)
 
 
-    def bsf_traverse_paths_change_impact(self, session: Session, component_id, bookkeeping, paths):
+    def bsf_traverse_paths_change_impact(self, session: Session, component_id, bookkeeping, info_flows):
         start_component_id = clean_component_id(component_id)
         
         # Find all "InParameter" nodes associated with the component
@@ -196,9 +196,9 @@ class FlowCalculation:
                 # Extract list of outer workflows (leftmost = outermost)
                 outer_workflows = [workflow[0] for workflow in component_stack if get_is_workflow_class(workflow[1])]
                 # Process sequential and direct flows
-                self.process_sequential_flows_to_component(component_id, depth, last_seen, outer_workflows, paths)
+                self.process_sequential_flows_to_component(component_id, depth, last_seen, outer_workflows, info_flows)
                 self.process_direct_indirect_flow_of_node_id(node_id, component_id, outer_workflows, component_stack, 
-                                                              step_stack, bookkeeping, paths, direct=True)
+                                                              step_stack, bookkeeping, info_flows, direct=True)
                 
                 # Increment depth as we move deeper into the traversal, unless we just entered a workflow
                 if not get_is_workflow_class(component_type):
@@ -213,7 +213,7 @@ class FlowCalculation:
                 # Process indirect flows
                 outer_workflows = [workflow[0] for workflow in component_stack if get_is_workflow_class(workflow[1])]
                 self.process_direct_indirect_flow_of_node_id(node_id, component_id, outer_workflows, component_stack, step_stack, 
-                                                             bookkeeping, paths, direct=False)
+                                                             bookkeeping, info_flows, direct=False)
                 if get_is_workflow_class(component_type):
                     # When we exit a workflow, the workflow needs to be at 
                     # the same depth as its last step
