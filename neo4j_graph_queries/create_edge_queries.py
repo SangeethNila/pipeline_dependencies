@@ -92,13 +92,7 @@ def create_control_relationship(driver: Driver, from_internal_node_id: int, to_i
     query = """
     MATCH (a), (b)
     WHERE elementId(a) = $from_internal_node_id AND elementId(b) = $to_internal_node_id
-    MERGE (a)-[r:CONTROL_DEPENDENCY {component_id: $component_id, step_id: $step_id}]->(b)
-    SET r.data_ids = 
-        CASE 
-            WHEN r.data_ids IS NULL THEN [$data_id]
-            WHEN NOT $data_id IN r.data_ids THEN r.data_ids + [$data_id]
-            ELSE r.data_ids
-        END
+    MERGE (a)-[r:CONTROL_DEPENDENCY {component_id: $component_id, step_id: $step_id, data_id: $data_id}]->(b)
     RETURN elementId(a) AS id_1, elementId(b) AS id_2
     """
     with driver.session() as session:
