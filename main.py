@@ -4,9 +4,9 @@ from graph_analysis.metric_calculations.FlowCalculation import FlowCalculation
 from graph_analysis.metric_calculations.ChangeImpact import ChangeImpact
 from graph_analysis.subgraph_preprocessing.SubgraphPreprocessing import SubgraphPreprocessing
 from graph_analysis.general_analysis import get_graph_size_per_repo
-from metric_evaluation.change_impact_eval import evaluate_coupling
+#from metric_evaluation.change_impact_eval import evaluate_coupling
 from neo4j_graph_queries.utils import clean_component_id
-from process_gitlab.process_history import  calculate_co_change_ratios
+#from process_gitlab.process_history import  calculate_co_change_ratios
 from graph_creation.repo_processing import process_repos
 from neo4j import GraphDatabase
 import dotenv

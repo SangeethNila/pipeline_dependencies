@@ -1,7 +1,7 @@
 # PiVoT 
 **Pi**peline dependencies **V**isualizati**o**n **T**ool --  PiVoT 
 
-
+PiVoT is a framework that can extract data dependencies from a repository containing CWL files.
 
 ## Add your files
 
