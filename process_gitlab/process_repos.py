@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import subprocess
 import gitlab
+import shutil
 
 from graph_creation.utils import GITLAB_ASTRON
 from process_gitlab.utils import CONSIDERED_MRS, GIT_ID_TO_NAME, SHORTHAND_TO_PATH
@@ -79,3 +80,22 @@ def save_commit_history_for_evaluation():
             # Save to a JSON file
             with open(f"commit_data/{repo_name}_commits_for_evaluation.json", "w", encoding="utf-8") as file:
                 json.dump(commit_data, file, indent=4)
+
+
+def delete_cloned_repos(folder_name: str) -> None:
+    """
+    Deletes the specified folder and all its contents.
+
+    Parameters:
+        folder_name (str): The name of the folder to delete.
+    """
+    if os.path.exists(folder_name):
+        print(f"Deleting all repositories in '{target_folder}'...")
+        try:
+            # Recursively deletes the folder and everything inside it
+            shutil.rmtree(target_folder)
+            print("Cleanup complete!")
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+    else:
+        print(f"Folder '{folder_name}' does not exist.")
