@@ -3,94 +3,165 @@
 
 PiVoT is a framework that can extract data dependencies from a repository containing CWL files.
 
-## Add your files
+PiVoT turns Common Workflow Language (CWL) workflows into a queryable dependency graph. It discovers workflow inputs, outputs, nested steps, and the relationships between them, then stores that structure in Neo4j for exploration and further analysis.
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## What it does
 
+- Clones the configured ASTRON GitLab repositories for processing.
+- Recursively finds and parses `.cwl` files as YAML, including non-UTF-8 input through encoding detection.
+- Represents CWL components and parameters as Neo4j nodes.
+- Creates `DATA_FLOW`, `CONTROL_DEPENDENCY`, and repository `REFERENCES` relationships.
+- Preprocesses the graph so that dependencies can be inspected in Neo4j Browser.
+- Includes research code for flow-path calculation, change-impact scoring, and historical co-change comparison.
+
+The current default run builds and preprocesses the graph. The change-impact analysis call in `main.py` is commented out, so the analysis outputs described below are produced only when that workflow is enabled separately.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[ASTRON GitLab repositories] --> B[Repository cloning]
+    B --> C[CWL parsing]
+    C --> D[Graph creation]
+    D --> E[(Neo4j)]
+    E --> F[Neo4j Browser]
+    E --> G[Flow and change-impact analysis]
 ```
-cd existing_repo
-git remote add origin https://git.astron.nl/liotta/pipeline-dependency-analysis.git
-git branch -M main
-git push -uf origin main
+
+The main modules are organized around this pipeline:
+
+| Area | Responsibility |
+| --- | --- |
+| `process_gitlab/` | Clone repositories and collect commit history for evaluation. |
+| `graph_creation/` | Parse CWL and Docker-related files and translate them into graph entities. |
+| `neo4j_graph_queries/` | Create, remove, and query graph nodes and relationships. |
+| `graph_analysis/` | Preprocess dependency subgraphs and calculate information-flow paths and impact scores. |
+| `metric_evaluation/` | Compare change-impact results with historical co-change data. |
+
+## Requirements
+
+- Docker Desktop with Docker Compose
+- Git
+- Python 3.10 or newer for local development
+- Access to the ASTRON GitLab instance and permission to clone the repositories listed in `main.py`
+
+The Docker image installs the Python dependencies from `requirements.txt`. A local virtual environment is useful when developing or running individual modules.
+
+## Quick start with Docker
+
+From the repository root:
+
+```bash
+docker compose up --build
 ```
 
-## Integrate with your tools
+This starts the processor container and a Neo4j server. Neo4j Browser is available at <http://localhost:7474> and the Bolt endpoint is exposed at `bolt://localhost:7687`.
 
-- [ ] [Set up project integrations](https://git.astron.nl/liotta/pipeline-dependency-analysis/-/settings/integrations)
+For a detached startup that waits for Neo4j and opens the browser automatically:
 
-## Collaborate with your team
+```bash
+make up-browser
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+Stop the services with:
 
-## Test and Deploy
+```bash
+make down
+```
 
-Use the built-in continuous integration in GitLab.
+Useful operational commands:
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+```bash
+make up       # Start the stack in the foreground
+make logs     # Follow service logs
+```
 
-***
+The default Neo4j login configured by Docker Compose is:
 
-# Editing this README
+```text
+username: neo4j
+password: your_new_password
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Change this value in `docker-compose.yml` before using the project outside a local development environment. The same password must be used for `NEO4J_PASSWORD` and `NEO4J_AUTH`.
 
-## Suggestions for a good README
+## Configuration
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Neo4j connection settings are read from environment variables by `main.py`:
 
-## Name
-Choose a self-explaining name for your project.
+| Variable | Default | Description |
+| --- | --- | --- |
+| `NEO4J_URI` | `bolt://localhost:7687` | Neo4j Bolt URI. Docker Compose overrides this with the service hostname. |
+| `NEO4J_USERNAME` | `neo4j` | Neo4j username. |
+| `NEO4J_PASSWORD` | `your_new_password` | Neo4j password. |
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+The list of repositories to clone is currently defined in `main.py` under `relevant_repos`. Update that list when processing a different set of ASTRON projects.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## Graph model
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+PiVoT uses these principal node labels:
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+- `Component`: a CWL file or component, identified by its repository-relative path.
+- `InParameter`: an input belonging to a component.
+- `OutParameter`: an output belonging to a component.
+- `Git`: a referenced Git repository.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Relationships describe how information moves through the workflow:
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+- `DATA_FLOW` connects a source parameter to its destination parameter or component.
+- `CONTROL_DEPENDENCY` captures dependencies created by workflow control expressions such as `when`.
+- `REFERENCES` connects a component with a referenced Git repository.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Generated data
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+When the analysis routines are enabled, PiVoT writes these files in the repository root:
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+| File | Contents |
+| --- | --- |
+| `flow_paths.json` | Information-flow paths between components. |
+| `change_impact_analysis.csv` | Component coupling/change-impact matrix. |
+| `change_impact_cumulative_scores.json` | Cumulative impact scores grouped by repository. |
+| `history_percent.csv` | Co-change percentages used for evaluation. |
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Commit fixtures used by the evaluation workflow are kept under `commit_data/`.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Local development
 
-## License
-For open source projects, say how it is licensed.
+Create an isolated environment and install the dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Neo4j must be running before a local Python process can connect to it. Set the connection variables for the local endpoint, then run:
+
+```bash
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_USERNAME=neo4j
+export NEO4J_PASSWORD=your_new_password
+python main.py
+```
+
+The processing run clears the existing graph, clones the configured repositories into a temporary `repos/` directory, imports their CWL data, prints graph-size information, and removes the cloned repositories during cleanup.
+
+## Research context
+
+PiVoT supports the dependency representation and change-impact analysis described in the master thesis *Representing dependencies and performing change impact analysis in the ASTRON ecosystem of CWL workflows*. The implementation separates graph construction from downstream analysis so that the dependency representation can be explored independently in Neo4j.
 
 ## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
 
-## ANTLR
+This repository is a research prototype. The default graph-import path is the primary supported workflow; the analysis pipeline and some integrations remain under active development. Before running against shared data, review the repository list, Neo4j credentials, and the graph-clearing behavior in `main.py`.
 
-JS:
-1. Download lexer and parser from https://github.com/antlr/grammars-v4/tree/master/javascript/javascript
-2. Download `JavaScriptLexerBase.py`, `JavaScriptParserBase.py`, `transformGrammar.py` from https://github.com/antlr/grammars-v4/tree/master/javascript/javascript/Python3
-3. Run `python transformGrammar.py`
-4. Run `java -jar antlr-4.13.2-complete.jar -o antlr_gen *.g`
+## Contributing
+
+Small, focused changes are welcome. When contributing:
+
+1. Keep parsing, graph queries, and analysis logic in their existing modules.
+2. Document new environment variables or generated files here.
+3. Verify changes against a local Neo4j instance or the Docker Compose stack.
+
+## License
+
+No license file is currently included. Confirm the intended license with the project maintainers before redistributing the code.

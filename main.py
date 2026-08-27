@@ -16,6 +16,7 @@ import pandas as pd
 from pprint import pprint
 from process_gitlab.process_repos import clone_repos, save_commit_history_for_evaluation, delete_cloned_repos
 from neo4j_graph_queries.delete_existing_graph import delete_graph
+from neo4j.exceptions import Neo4jError
 
 
 
@@ -46,44 +47,58 @@ if __name__ == '__main__':
     
     print(f"Connecting to Neo4j instance at: {URI} using username: {user_name}")
 
-    with GraphDatabase.driver(URI, auth=AUTH) as driver:
-        driver.verify_connectivity()
-        print("Connection established.")
-        driver = GraphDatabase.driver(URI, auth=AUTH)
-        delete_graph(driver)
-        process_repos(repo_paths, driver)
-        neo4j_traversal = SubgraphPreprocessing(driver)
-        neo4j_traversal.preprocess_all_graphs()
+    try
+        with GraphDatabase.driver(URI, auth=AUTH) as driver:
+            driver.verify_connectivity()
+            print("Connection established.")
+            driver = GraphDatabase.driver(URI, auth=AUTH)
+            delete_graph(driver)
+            process_repos(repo_paths, driver)
+            neo4j_traversal = SubgraphPreprocessing(driver)
+            neo4j_traversal.preprocess_all_graphs()
 
-        pprint(get_graph_size_per_repo(driver.session(), relevant_repos))
+            pprint(get_graph_size_per_repo(driver.session(), relevant_repos))
 
-        #The following is for analysis of flow paths and change impact. However, it is commented out for now as it is not needed for creation of the graph and interacting with it.
-        # flow_calculation = FlowCalculation(driver)
-        # flow_calculation.perform_flow_path_calculation()
+            #The following is for analysis of flow paths and change impact. However, it is commented out for now as it is not needed for creation of the graph and interacting with it.
+            #analysis(driver, relevant_repos)
+            
+            #Count the total number of CWL files across all repositories
+            total = 0
+            for path in repo_paths:
+                pathlist = list(Path(path).rglob("*.cwl"))
+                print(f'{path} has {len(pathlist)}')
+                total += len(pathlist)
+            print(f"Total CWL files: {total}")
 
-        # with open("flow_paths.json", "r") as json_file:
-        #     paths = json.load(json_file)
-        # change_impact = ChangeImpact(driver)
-        # change_impact.complete_path_analysis(paths)
-        # # save_commit_history_for_evaluation()
-        # with open("commits_for_evaluation.json", "r") as json_file:
-        #     commit_history = json.load(json_file)
-        # calculate_co_change_ratios(commit_history)
-
-        # evaluate_coupling("change_impact_analysis.csv","history_percent.csv")
-        # change_impact.change_impact_exploration("change_impact_analysis.csv", relevant_repos)
-    
-
-        total = 0
-        for path in repo_paths:
-            pathlist = list(Path(path).rglob("*.cwl"))
-            print(f'{path} has {len(pathlist)}')
-            total += len(pathlist)
-        print(total)
-
-
-        driver.close()
+    except Neo4jError as neo4j_err:
+        print(f"Neo4j Database error encountered: {neo4j_err}")
+    except Exception as err:
+        print(f"An unexpected error occurred during processing: {err}")
+    finally:
+        # Safely close the driver if it was successfully instantiated
+        if 'driver' in locals() and driver:
+            driver.close()
+            print("Driver connection safely closed.")
+            driver.close()
     
     #cleanup: Delete the cloned repositories after processing to free up space
     delete_cloned_repos(folder)
 
+
+    
+
+def analysis(driver, relevant_repos):
+    flow_calculation = FlowCalculation(driver)
+    flow_calculation.perform_flow_path_calculation()
+
+    with open("flow_paths.json", "r") as json_file:
+        paths = json.load(json_file)
+    change_impact = ChangeImpact(driver)
+    change_impact.complete_path_analysis(paths)
+    # save_commit_history_for_evaluation()
+    with open("commits_for_evaluation.json", "r") as json_file:
+        commit_history = json.load(json_file)
+    calculate_co_change_ratios(commit_history)
+
+    evaluate_coupling("change_impact_analysis.csv","history_percent.csv")
+    change_impact.change_impact_exploration("change_impact_analysis.csv", relevant_repos)
