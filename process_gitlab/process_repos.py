@@ -90,11 +90,11 @@ def delete_cloned_repos(folder_name: str) -> None:
         folder_name (str): The name of the folder to delete.
     """
     if os.path.exists(folder_name):
-        print(f"Deleting all repositories in '{target_folder}'...")
+        print(f"Deleting all repositories in '{folder_name}'...")
         try:
             # Recursively deletes the folder and everything inside it
-            shutil.rmtree(target_folder)
-            print("Cleanup complete!")
+            shutil.rmtree(folder_name)  
+            print(f"Folder '{folder_name}' and all its contents have been deleted.\n Cleanup complete!")
         except Exception as e:
             print(f"Error during cleanup: {e}")
     else:

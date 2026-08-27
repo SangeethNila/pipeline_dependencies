@@ -3,6 +3,8 @@ python-dotenv
 neo4j
 ruamel.yaml
 chardet
+dockerfile
+cliffs_delta
 dockerfile-parse
 gitpython
 networkx
