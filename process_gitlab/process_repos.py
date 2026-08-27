@@ -23,8 +23,12 @@ def clone_repos(repo_list: list[str], folder_name: str) -> None:
     for project in projects:
         repo_name = project.attributes['path_with_namespace']
         if repo_name in repo_list:
-            git_url = project.ssh_url_to_repo
+            # git_url = project.ssh_url_to_repo
+            # subprocess.call(['git', 'clone', git_url, f'./{folder_name}/{repo_name}'])
+            # Swapping to HTTP URL bypasses SSH port restrictions completely
+            git_url = project.http_url_to_repo  
             subprocess.call(['git', 'clone', git_url, f'./{folder_name}/{repo_name}'])
+        
 
 def save_commit_history_for_evaluation():
 
