@@ -83,8 +83,7 @@ if __name__ == '__main__':
     
     #cleanup: Delete the cloned repositories after processing to free up space
     delete_cloned_repos(folder)
-
-
+    
     
 
 def analysis(driver, relevant_repos):

@@ -66,41 +66,40 @@ password: your_new_password
 
 Change this value in `docker-compose.yml` before using the project outside a local development environment. The same password must be used for `NEO4J_PASSWORD` and `NEO4J_AUTH`.
 
-The graph creation can be invoked as follows:
+The graph can be created from the processor container as follows:
 
 ```bash
 docker compose run -it cwl_processor
 ```
 
-This invokes the docker service with all necessary dependencies to run all the the scripts and loads the script in the current directory of the docker service. Successful run of the command 
-will open a shell inside the docker service.  From the shell the following command can initiatet the graph creation. Interaction and queries with the resultant graph can be performed either via Browser at <http://localhost:7474> or the Bolt endpoint at `bolt://localhost:7687`.
+This starts the Docker service with all dependencies required by the project and opens a shell inside the container. From that shell, run the following command to initiate graph creation. You can interact with and query the resulting graph through Neo4j Browser at <http://localhost:7474> or through the Bolt endpoint at `bolt://localhost:7687`.
 
 ```bash
 python3 main.py
 ```
 
-To exit from the container use 
+To exit the container, use:
 
 ```bash
 exit
 ```
 
-To terminate the docker instances:
+To stop the Docker services:
 
 ```bash
 docker compose down --remove-orphans
 ```
 
-Based on the specific docker and system configuration, sometimes, the ports 7474 and 7687 might be blocked not allowing further successful invokations of the Neo4j service. In that case, (in unix based systems) the ports can be made available using the following commands:
+Depending on your Docker and system configuration, ports `7474` and `7687` may be occupied, preventing the Neo4j service from starting. On Unix-like systems, identify the processes using those ports with:
 
 ```bash
 sudo lsof -i :7474,7687
 ```
 
-PIDs identified from the result of the above command can be used to terminate the services occupying these ports (in unix based systems) as follows:
+You can then terminate the processes occupying those ports with:
 
 ```bash
-sudo kill -9 <PIDs seperated by space>
+sudo kill -9 <PIDs separated by spaces>
 ```
 
 
