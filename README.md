@@ -41,15 +41,13 @@ The main modules are organized around this pipeline:
 ## Requirements
 
 - Docker Desktop with Docker Compose
-- Git
-- Python 3.10 or newer for local development
-- Access to the ASTRON GitLab instance and permission to clone the repositories listed in `main.py`
+- Git (for cloning the repository)
 
 The Docker image installs the Python dependencies from `requirements.txt`. A local virtual environment is useful when developing or running individual modules.
 
 ## Quick start with Docker
 
-From the repository root:
+Clone the repository. From the repository root:
 
 ```bash
 docker compose up --build
