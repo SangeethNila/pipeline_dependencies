@@ -57,25 +57,6 @@ docker compose up --build
 
 This starts the processor container and a Neo4j server. Neo4j Browser is available at <http://localhost:7474> and the Bolt endpoint is exposed at `bolt://localhost:7687`.
 
-For a detached startup that waits for Neo4j and opens the browser automatically:
-
-```bash
-make up-browser
-```
-
-Stop the services with:
-
-```bash
-make down
-```
-
-Useful operational commands:
-
-```bash
-make up       # Start the stack in the foreground
-make logs     # Follow service logs
-```
-
 The default Neo4j login configured by Docker Compose is:
 
 ```text
@@ -84,6 +65,45 @@ password: your_new_password
 ```
 
 Change this value in `docker-compose.yml` before using the project outside a local development environment. The same password must be used for `NEO4J_PASSWORD` and `NEO4J_AUTH`.
+
+The graph creation can be invoked as follows:
+
+```bash
+docker compose run -it cwl_processor
+```
+
+This invokes the docker service with all necessary dependencies to run all the the scripts and loads the script in the current directory of the docker service. Successful run of the command 
+will open a shell inside the docker service.  From the shell the following command can initiatet the graph creation. Interaction and queries with the resultant graph can be performed either via Browser at <http://localhost:7474> or the Bolt endpoint at `bolt://localhost:7687`.
+
+```bash
+python3 main.py
+```
+
+To exit from the container use 
+
+```bash
+exit
+```
+
+To terminate the docker instances:
+
+```bash
+docker compose down --remove-orphans
+```
+
+Based on the specific docker and system configuration, sometimes, the ports 7474 and 7687 might be blocked not allowing further successful invokations of the Neo4j service. In that case, (in unix based systems) the ports can be made available using the following commands:
+
+```bash
+sudo lsof -i :7474,7687
+```
+
+PIDs identified from the result of the above command can be used to terminate the services occupying these ports (in unix based systems) as follows:
+
+```bash
+sudo kill -9 <PIDs seperated by space>
+```
+
+
 
 ## Configuration
 
