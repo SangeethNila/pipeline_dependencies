@@ -8,7 +8,7 @@ PiVoT turns Common Workflow Language (CWL) workflows into a queryable dependency
 ## What it does
 
 - Clones the configured ASTRON GitLab repositories for processing.
-- Recursively finds and parses `.cwl` files as YAML, including non-UTF-8 input through encoding detection.
+- Recursively finds and parses `.cwl` files.
 - Represents CWL components and parameters as Neo4j nodes.
 - Creates `DATA_FLOW`, `CONTROL_DEPENDENCY`, and repository `REFERENCES` relationships.
 - Preprocesses the graph so that dependencies can be inspected in Neo4j Browser.
