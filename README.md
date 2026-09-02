@@ -165,20 +165,7 @@ The processing run clears the existing graph, clones the configured repositories
 
 ## Research context
 
-PiVoT supports the dependency representation and change-impact analysis described in the master thesis *Representing dependencies and performing change impact analysis in the ASTRON ecosystem of CWL workflows*. The implementation separates graph construction from downstream analysis so that the dependency representation can be explored independently in Neo4j.
-
-## Project status
-
-This repository is a research prototype. The default graph-import path is the primary supported workflow; the analysis pipeline and some integrations remain under active development. Before running against shared data, review the repository list, Neo4j credentials, and the graph-clearing behavior in `main.py`.
-
-## Contributing
-
-Small, focused changes are welcome. When contributing:
-
-1. Keep parsing, graph queries, and analysis logic in their existing modules.
-2. Document new environment variables or generated files here.
-3. Verify changes against a local Neo4j instance or the Docker Compose stack.
+PiVoT supports the dependency representation and change-impact analysis described in the master thesis *"Representing dependencies and performing change impact analysis in the ASTRON ecosystem of CWL workflows"*. The implementation separates graph construction from downstream analysis so that the dependency representation can be explored independently in Neo4j.
 
 ## License
-
-No license file is currently included. Confirm the intended license with the project maintainers before redistributing the code.
+MIT 
